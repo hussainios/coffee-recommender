@@ -1,0 +1,16 @@
+# Secrets
+.env
+
+# Local environments
+.venv/
+venv/
+
+# Python caches
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# OS/editor noise
+.DS_Store
+.vscode/
+.idea/
