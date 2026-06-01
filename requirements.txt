@@ -6,3 +6,4 @@ tqdm>=4.0.0
 streamlit>=1.40.0
 plotly>=5.0.0
 scikit-learn>=1.0.0
+mypy>=1.10.0

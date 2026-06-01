@@ -72,7 +72,6 @@ class CoffeeRecord(BaseModel):
     source_file: str
 
     @computed_field
-    @property
     def price_per_kg(self) -> Optional[float]:
         if self.price is None or self.weight_g is None:
             return None

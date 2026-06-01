@@ -12,11 +12,18 @@ class Recommendation(dict):
     pass
 
 
+def _coerce_float(value: object, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def _load_frame(path: str | Path) -> pd.DataFrame:
     return pd.read_csv(path)
 
 
-def _infer_sensory_from_metadata(row: pd.Series) -> dict[str, float]:
+def _infer_sensory_from_metadata(row: pd.Series) -> dict[str, object]:
     process = str(row.get("process", "")).lower()
     roast = str(row.get("roast_level", "")).lower()
     notes = " ".join(
@@ -71,16 +78,22 @@ def _infer_sensory_from_metadata(row: pd.Series) -> dict[str, float]:
 
 def _coerce_profile(profile: UserProfile | dict[str, float]) -> dict[str, float]:
     dimensions = (*PROFILE_DIMENSIONS, *PROCESS_PREFERENCE_DIMENSIONS)
-    return {dimension: float(profile.get(dimension, 0.0)) for dimension in dimensions}
+    return {dimension: _coerce_float(profile.get(dimension, 0.0)) for dimension in dimensions}
 
 
 def _coerce_sensory_row(row: pd.Series) -> dict[str, float]:
-    return {dimension: float(row.get(dimension, 0.0)) for dimension in PROFILE_DIMENSIONS}
+    return {dimension: _coerce_float(row.get(dimension, 0.0)) for dimension in PROFILE_DIMENSIONS}
 
 
-def score_coffee(profile: UserProfile | dict[str, float], sensory: dict[str, float]) -> tuple[float, dict[str, float]]:
+def score_coffee(
+    profile: UserProfile | dict[str, float],
+    sensory: dict[str, object],
+) -> tuple[float, dict[str, float]]:
     profile_values = _coerce_profile(profile)
-    sensory_values = {dimension: float(sensory.get(dimension, 0.0)) for dimension in PROFILE_DIMENSIONS}
+    sensory_values = {
+        dimension: _coerce_float(sensory.get(dimension, 0.0))
+        for dimension in PROFILE_DIMENSIONS
+    }
     process_values = {dimension: 0.0 for dimension in PROCESS_PREFERENCE_DIMENSIONS}
 
     process = str(sensory.get("process", "")).lower()

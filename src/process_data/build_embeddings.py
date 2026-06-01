@@ -10,7 +10,7 @@ PROCESS_DATA_DIR = Path(__file__).resolve().parent
 if str(PROCESS_DATA_DIR) not in sys.path:
     sys.path.insert(0, str(PROCESS_DATA_DIR))
 
-from embed_coffee import build_embedding_records
+from process_data.embed_coffee import build_embedding_records
 
 
 def main(coffees_path: Path, output_path: Path, model: str) -> None:

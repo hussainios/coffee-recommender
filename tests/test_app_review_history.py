@@ -21,7 +21,7 @@ from app_state import (  # noqa: E402
     reset_review_history,
     reset_review_history_if_data_paths_changed,
 )
-from landscape import CoffeeFeatures  # noqa: E402
+from landscape import CoffeeFeatures, ReviewEvent  # noqa: E402
 
 
 def _coffee(coffee_id: str) -> CoffeeFeatures:
@@ -73,7 +73,7 @@ class ReviewHistoryHelperTests(unittest.TestCase):
             last_event=None,
             last_recommendations=[],
         )
-        event = {"coffee_id": "catalogue", "overall": 1.0}
+        event: ReviewEvent = {"coffee_id": "catalogue", "overall": 1.0}
 
         append_review_event(state, event, _coffee("catalogue"), is_temporary=False)
 
@@ -89,7 +89,7 @@ class ReviewHistoryHelperTests(unittest.TestCase):
             last_recommendations=[],
         )
         coffee = _coffee("temporary-url")
-        event = {"coffee_id": coffee.coffee_id, "overall": -0.5}
+        event: ReviewEvent = {"coffee_id": coffee.coffee_id, "overall": -0.5}
 
         append_review_event(state, event, coffee, is_temporary=True)
 

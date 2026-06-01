@@ -11,15 +11,11 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
-PROCESS_DATA = SRC / "process_data"
 
-for path in (SRC, PROCESS_DATA):
-    path_str = str(path)
-    if path_str not in sys.path:
-        sys.path.insert(0, path_str)
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
 
-import build_dataset  # noqa: E402
-import build_embeddings  # noqa: E402
+from process_data import build_dataset, build_embeddings  # noqa: E402
 from schemas import CoffeeRecord, Process, RoastLevel, SensoryVector  # noqa: E402
 
 

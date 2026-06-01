@@ -15,9 +15,9 @@ for path in (SRC_DIR, PROCESS_DATA_DIR):
     if path_str not in sys.path:
         sys.path.insert(0, path_str)
 
-from parse_metadata import parse_metadata
-from extract_sensory import extract_sensory_vector_llm
-from embed_coffee import build_embedding_records
+from process_data.parse_metadata import parse_metadata
+from process_data.extract_sensory import extract_sensory_vector_llm
+from process_data.embed_coffee import build_embedding_records
 
 
 def main(raw_dir: Path, output_dir: Path, sensory_model: str, embedding_model: str) -> None:

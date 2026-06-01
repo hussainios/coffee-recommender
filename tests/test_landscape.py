@@ -396,7 +396,7 @@ class LandscapeTests(unittest.TestCase):
             [_coffee("reviewed"), _coffee("candidate")],
             [_sensory("reviewed", roasty=0.9), _sensory("candidate", roasty=0.9)],
         )
-        review = {
+        review: ReviewEvent = {
             "coffee_id": "reviewed",
             "overall": 0.0,
             "attribute_opinions": {
