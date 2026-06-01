@@ -15,6 +15,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 import parse_review  # noqa: E402
+import openai_client  # noqa: E402
 from landscape import CoffeeFeatures, recommend_from_landscape  # noqa: E402
 from parse_review import parse_review_event  # noqa: E402
 
@@ -68,7 +69,7 @@ def _coffee(
 
 class ParseReviewEventTests(unittest.TestCase):
     def setUp(self) -> None:
-        parse_review.client = None
+        openai_client.reset_openai_client_cache()
 
     def test_positive_review_with_mild_acidity_correction(self) -> None:
         payload = {
@@ -79,7 +80,7 @@ class ParseReviewEventTests(unittest.TestCase):
             "attribute_opinions": [],
         }
 
-        with patch.object(parse_review, "get_client", return_value=_Client(payload)):
+        with patch.object(openai_client, "get_openai_client", return_value=_Client(payload)):
             event = parse_review_event("I liked this, but it was a little too acidic.", _coffee())
 
         self.assertEqual(event["coffee_id"], "reviewed")
@@ -95,7 +96,7 @@ class ParseReviewEventTests(unittest.TestCase):
         }
         fake_client = _Client(payload)
 
-        with patch.object(parse_review, "get_client", return_value=fake_client):
+        with patch.object(openai_client, "get_openai_client", return_value=fake_client):
             parse_review_event("It was fine.", _coffee())
 
         self.assertEqual(fake_client.responses.kwargs["temperature"], 0.0)
@@ -110,7 +111,7 @@ class ParseReviewEventTests(unittest.TestCase):
             "attribute_opinions": [],
         }
 
-        with patch.object(parse_review, "get_client", return_value=_Client(payload)):
+        with patch.object(openai_client, "get_openai_client", return_value=_Client(payload)):
             event = parse_review_event("I hated this, too funky and bitter.", _coffee())
 
         self.assertLess(event["overall"], 0)
@@ -126,7 +127,7 @@ class ParseReviewEventTests(unittest.TestCase):
             "attribute_opinions": [],
         }
 
-        with patch.object(parse_review, "get_client", return_value=_Client(payload)):
+        with patch.object(openai_client, "get_openai_client", return_value=_Client(payload)):
             event = parse_review_event("Nice, but I wanted more sweetness.", _coffee())
 
         self.assertEqual(event["change_requests"]["sweetness"]["direction"], "higher")
@@ -147,7 +148,7 @@ class ParseReviewEventTests(unittest.TestCase):
             ],
         }
 
-        with patch.object(parse_review, "get_client", return_value=_Client(payload)):
+        with patch.object(openai_client, "get_openai_client", return_value=_Client(payload)):
             event = parse_review_event("Good but cheaper please, somehow.", _coffee())
 
         self.assertEqual(event["change_requests"], {})
@@ -162,7 +163,7 @@ class ParseReviewEventTests(unittest.TestCase):
             ],
         }
 
-        with patch.object(parse_review, "get_client", return_value=_Client(payload)):
+        with patch.object(openai_client, "get_openai_client", return_value=_Client(payload)):
             event = parse_review_event("I hated this coffee, but I liked the roast level.", _coffee(roasty=0.2))
 
         self.assertEqual(event["attribute_opinions"]["roasty"]["sentiment"], "liked")
@@ -177,7 +178,7 @@ class ParseReviewEventTests(unittest.TestCase):
             ],
         }
 
-        with patch.object(parse_review, "get_client", return_value=_Client(payload)):
+        with patch.object(openai_client, "get_openai_client", return_value=_Client(payload)):
             event = parse_review_event("I liked this coffee overall, but disliked the body.", _coffee())
 
         self.assertEqual(event["attribute_opinions"]["body"]["sentiment"], "disliked")
@@ -193,18 +194,21 @@ class ParseReviewEventTests(unittest.TestCase):
             ],
         }
 
-        with patch.object(parse_review, "get_client", return_value=_Client(payload)):
+        with patch.object(openai_client, "get_openai_client", return_value=_Client(payload)):
             event = parse_review_event("The sweetness was nice, but I wanted it a bit sweeter.", _coffee())
 
         self.assertEqual(event["change_requests"]["sweetness"]["direction"], "higher")
         self.assertEqual(event["attribute_opinions"]["sweetness"]["sentiment"], "liked")
 
     def test_missing_api_key_raises_clear_error(self) -> None:
-        with patch.dict(os.environ, {}, clear=True):
-            parse_review.client = None
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch.object(openai_client, "load_dotenv", return_value=False),
+        ):
+            openai_client.reset_openai_client_cache()
 
             with self.assertRaisesRegex(RuntimeError, "OPENAI_API_KEY is required for review parsing"):
-                parse_review.get_client()
+                openai_client.get_openai_client("review parsing")
 
     def test_parsed_event_works_with_landscape_recommendations(self) -> None:
         payload = {
@@ -223,7 +227,7 @@ class ParseReviewEventTests(unittest.TestCase):
             lower_acidity.coffee_id: lower_acidity,
         }
 
-        with patch.object(parse_review, "get_client", return_value=_Client(payload)):
+        with patch.object(openai_client, "get_openai_client", return_value=_Client(payload)):
             event = parse_review_event("Loved this but it was too acidic.", reviewed)
 
         recommendations = recommend_from_landscape(features, [event], top_k=2)

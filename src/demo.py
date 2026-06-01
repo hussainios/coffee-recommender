@@ -13,8 +13,15 @@ from landscape import load_feature_index, recommend_from_landscape
 from parse_review import parse_review_event
 
 
-def main(review: str, reviewed_coffee_id: str, coffees_path: Path, sensory_path: Path, top_k: int) -> None:
-    features = load_feature_index(coffees_path, sensory_path)
+def main(
+    review: str,
+    reviewed_coffee_id: str,
+    coffees_path: Path,
+    sensory_path: Path,
+    embeddings_path: Path,
+    top_k: int,
+) -> None:
+    features = load_feature_index(coffees_path, sensory_path, embeddings_path)
     reviewed_coffee = features[reviewed_coffee_id]
     event = parse_review_event(review, reviewed_coffee)
     recommendations = recommend_from_landscape(features, [event], top_k=top_k)
@@ -35,6 +42,7 @@ if __name__ == "__main__":
     parser.add_argument("--reviewed-coffee-id", required=True, help="Coffee ID the review is about.")
     parser.add_argument("--coffees-path", default="data/processed/coffees.csv")
     parser.add_argument("--sensory-path", default="data/processed/coffee_sensory_vectors.csv")
+    parser.add_argument("--embeddings-path", default="data/processed/coffee_embeddings.csv")
     parser.add_argument("--top-k", type=int, default=5)
 
     args = parser.parse_args()
@@ -44,5 +52,6 @@ if __name__ == "__main__":
         reviewed_coffee_id=args.reviewed_coffee_id,
         coffees_path=Path(args.coffees_path),
         sensory_path=Path(args.sensory_path),
+        embeddings_path=Path(args.embeddings_path),
         top_k=args.top_k,
     )

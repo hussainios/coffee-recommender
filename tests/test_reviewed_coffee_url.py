@@ -16,8 +16,8 @@ for path in (SRC, PROCESS_DATA):
         sys.path.insert(0, path_str)
 
 import reviewed_coffee_url  # noqa: E402
+import openai_client  # noqa: E402
 from reviewed_coffee_url import (  # noqa: E402
-    build_reviewed_coffee_from_url,
     extract_product_text_from_html,
     fetch_url_html,
     prepare_reviewed_coffee_from_url,
@@ -160,7 +160,7 @@ class ReviewedCoffeeUrlTests(unittest.TestCase):
             patch.object(reviewed_coffee_url, "extract_sensory_vector_llm", return_value=fake_sensory),
             patch.object(reviewed_coffee_url, "embed_coffee_record", return_value=[0.3, 0.2, 0.1]),
         ):
-            features = build_reviewed_coffee_from_url("https://example.com/kenya")
+            features = prepare_reviewed_coffee_from_url("https://example.com/kenya").features
 
         self.assertEqual(features.name, "Example Coffee")
         self.assertEqual(features.process["process_washed"], 1.0)
@@ -240,9 +240,9 @@ class ReviewedCoffeeUrlTests(unittest.TestCase):
             patch.object(reviewed_coffee_url, "extract_sensory_vector_llm", return_value=self._fake_sensory()) as extract,
             patch.object(reviewed_coffee_url, "embed_coffee_record", return_value=[0.3, 0.2, 0.1]),
         ):
-            build_reviewed_coffee_from_url("https://example.com/kenya")
+            prepare_reviewed_coffee_from_url("https://example.com/kenya")
 
-        self.assertEqual(extract.call_args.kwargs["model"], "gpt-5.4-nano")
+        self.assertEqual(extract.call_args.kwargs["model"], openai_client.DEFAULT_CHAT_MODEL)
         self.assertEqual(extract.call_args.kwargs["temperature"], 0.0)
 
 

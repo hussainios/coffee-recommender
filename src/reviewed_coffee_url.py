@@ -21,6 +21,7 @@ from landscape import CoffeeFeatures, build_single_coffee_features
 from process_data.embed_coffee import embed_coffee_record
 from process_data.extract_sensory import extract_sensory_vector_llm
 from process_data.parse_metadata import normalise_source_url, parse_metadata_text
+from openai_client import DEFAULT_CHAT_MODEL, DEFAULT_EMBEDDING_MODEL
 from schemas import CoffeeRecord, SensoryVector
 
 
@@ -136,8 +137,8 @@ def _validate_parsed_coffee(coffee: CoffeeRecord) -> None:
 def prepare_reviewed_coffee_from_url(
     url: str,
     *,
-    embedding_model: str = "text-embedding-3-small",
-    sensory_model: str = "gpt-5.4-nano",
+    embedding_model: str = DEFAULT_EMBEDDING_MODEL,
+    sensory_model: str = DEFAULT_CHAT_MODEL,
 ) -> ReviewedCoffeeFromUrl:
     normalized_url, html = fetch_url_html(url)
     extracted_text = extract_product_text_from_html(html)
@@ -157,16 +158,3 @@ def prepare_reviewed_coffee_from_url(
         features=features,
         extracted_text=extracted_text,
     )
-
-
-def build_reviewed_coffee_from_url(
-    url: str,
-    *,
-    embedding_model: str = "text-embedding-3-small",
-    sensory_model: str = "gpt-5.4-nano",
-) -> CoffeeFeatures:
-    return prepare_reviewed_coffee_from_url(
-        url,
-        embedding_model=embedding_model,
-        sensory_model=sensory_model,
-    ).features

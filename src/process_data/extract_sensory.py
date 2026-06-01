@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import sys
 from typing import Any
 
@@ -15,14 +14,8 @@ for path in (SRC_DIR, PROCESS_DATA_DIR):
     if path_str not in sys.path:
         sys.path.insert(0, path_str)
 
-from dotenv import load_dotenv
-from openai import OpenAI
-
+import openai_client
 from schemas import CoffeeRecord, SensoryVector
-
-load_dotenv()
-
-client = None
 
 SENSORY_DIMENSIONS: tuple[str, ...] = (
     "acidity",
@@ -36,19 +29,6 @@ SENSORY_DIMENSIONS: tuple[str, ...] = (
     "roasty",
     "clean_cup",
 )
-
-
-def get_client() -> OpenAI:
-    global client
-    if client is None:
-        api_key = os.environ.get("OPENAI_API_KEY")
-        if not api_key:
-            raise RuntimeError(
-                "OPENAI_API_KEY is required for sensory extraction. "
-                "Add it to .env or export it before running build_dataset.py."
-            )
-        client = OpenAI(api_key=api_key)
-    return client
 
 
 SENSORY_JSON_SCHEMA: dict[str, Any] = {
@@ -115,7 +95,7 @@ Description:
 
 def extract_sensory_vector_llm(
     coffee: CoffeeRecord,
-    model: str = "gpt-5.4-nano",
+    model: str = openai_client.DEFAULT_CHAT_MODEL,
     temperature: float = 0.0,
 ) -> SensoryVector:
     prompt = f"""
@@ -136,7 +116,7 @@ Rules:
 {build_extraction_input(coffee)}
 """.strip()
 
-    response = get_client().responses.create(
+    response = openai_client.get_openai_client("sensory extraction").responses.create(
         model=model,
         input=prompt,
         temperature=temperature,
@@ -157,18 +137,3 @@ Rules:
         coffee_id=coffee.coffee_id,
         **parsed,
     )
-
-
-def extract_sensory_vector(
-    coffee: CoffeeRecord,
-    model: str = "gpt-5.4-nano",
-    temperature: float = 0.0,
-) -> SensoryVector:
-    """
-    Backwards-compatible wrapper for the LLM-backed sensory extractor.
-
-    Keeping this alias lets the rest of the pipeline stay unchanged while the
-    LLM boundary remains explicit in this module.
-    """
-
-    return extract_sensory_vector_llm(coffee, model=model, temperature=temperature)
