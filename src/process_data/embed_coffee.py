@@ -1,31 +1,12 @@
 from __future__ import annotations
 
 import json
-import os
 from typing import Any
 
 import pandas as pd
-from dotenv import load_dotenv
-from openai import OpenAI
 
+import openai_client
 from schemas import CoffeeRecord
-
-load_dotenv()
-
-client = None
-
-
-def get_client() -> OpenAI:
-    global client
-    if client is None:
-        api_key = os.environ.get("OPENAI_API_KEY")
-        if not api_key:
-            raise RuntimeError(
-                "OPENAI_API_KEY is required for coffee embeddings. "
-                "Add it to .env or export it before generating embeddings."
-            )
-        client = OpenAI(api_key=api_key)
-    return client
 
 
 def _clean(value: Any) -> str:
@@ -59,16 +40,19 @@ def build_embedding_text_from_record(coffee: CoffeeRecord) -> str:
     return build_embedding_text(pd.Series(coffee.model_dump(mode="json")))
 
 
-def embed_texts(texts: list[str], model: str = "text-embedding-3-small") -> list[list[float]]:
-    response = get_client().embeddings.create(model=model, input=texts)
+def embed_texts(texts: list[str], model: str = openai_client.DEFAULT_EMBEDDING_MODEL) -> list[list[float]]:
+    response = openai_client.get_openai_client("coffee embeddings").embeddings.create(model=model, input=texts)
     return [item.embedding for item in response.data]
 
 
-def embed_coffee_record(coffee: CoffeeRecord, model: str = "text-embedding-3-small") -> list[float]:
+def embed_coffee_record(coffee: CoffeeRecord, model: str = openai_client.DEFAULT_EMBEDDING_MODEL) -> list[float]:
     return embed_texts([build_embedding_text_from_record(coffee)], model=model)[0]
 
 
-def build_embedding_records(coffees: pd.DataFrame, model: str = "text-embedding-3-small") -> list[dict[str, str]]:
+def build_embedding_records(
+    coffees: pd.DataFrame,
+    model: str = openai_client.DEFAULT_EMBEDDING_MODEL,
+) -> list[dict[str, str]]:
     texts = [build_embedding_text(row) for _, row in coffees.iterrows()]
     embeddings = embed_texts(texts, model=model)
     return [

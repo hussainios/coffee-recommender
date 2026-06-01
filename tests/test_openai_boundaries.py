@@ -18,6 +18,7 @@ for path in (SRC, PROCESS_DATA):
         sys.path.insert(0, path_str)
 
 import parse_review  # noqa: E402
+import openai_client  # noqa: E402
 from landscape import CoffeeFeatures  # noqa: E402
 import extract_sensory  # noqa: E402
 import embed_coffee  # noqa: E402
@@ -102,9 +103,7 @@ def _coffee_record() -> CoffeeRecord:
 
 class OpenAIBoundaryTests(unittest.TestCase):
     def setUp(self) -> None:
-        parse_review.client = None
-        extract_sensory.client = None
-        embed_coffee.client = None
+        openai_client.reset_openai_client_cache()
 
     def test_parse_review_event_sends_schema_and_default_temperature(self) -> None:
         payload = {
@@ -114,11 +113,12 @@ class OpenAIBoundaryTests(unittest.TestCase):
         }
         client = _ResponseClient(payload)
 
-        with patch.object(parse_review, "get_client", return_value=client):
+        with patch.object(openai_client, "get_openai_client", return_value=client) as get_client:
             event = parse_review.parse_review_event("Nice, but a little too acidic.", _coffee_features())
 
+        get_client.assert_called_once_with("review parsing")
         self.assertEqual(event["change_requests"]["acidity"]["direction"], "lower")
-        self.assertEqual(client.responses.kwargs["model"], "gpt-5.4-nano")
+        self.assertEqual(client.responses.kwargs["model"], openai_client.DEFAULT_CHAT_MODEL)
         self.assertEqual(client.responses.kwargs["temperature"], 0.0)
         self.assertEqual(
             client.responses.kwargs["text"]["format"]["name"],
@@ -154,11 +154,12 @@ class OpenAIBoundaryTests(unittest.TestCase):
         }
         client = _ResponseClient(payload)
 
-        with patch.object(extract_sensory, "get_client", return_value=client):
+        with patch.object(openai_client, "get_openai_client", return_value=client) as get_client:
             sensory = extract_sensory.extract_sensory_vector_llm(_coffee_record())
 
+        get_client.assert_called_once_with("sensory extraction")
         self.assertEqual(sensory.coffee_id, "coffee-1")
-        self.assertEqual(client.responses.kwargs["model"], "gpt-5.4-nano")
+        self.assertEqual(client.responses.kwargs["model"], openai_client.DEFAULT_CHAT_MODEL)
         self.assertEqual(client.responses.kwargs["temperature"], 0.0)
         self.assertEqual(
             client.responses.kwargs["text"]["format"]["name"],
@@ -169,24 +170,48 @@ class OpenAIBoundaryTests(unittest.TestCase):
     def test_embed_texts_uses_expected_model_and_input_payload(self) -> None:
         client = _EmbeddingClient([[0.1, 0.2, 0.3], [0.3, 0.2, 0.1]])
 
-        with patch.object(embed_coffee, "get_client", return_value=client):
+        with patch.object(openai_client, "get_openai_client", return_value=client) as get_client:
             vectors = embed_coffee.embed_texts(["coffee a", "coffee b"])
 
+        get_client.assert_called_once_with("coffee embeddings")
         self.assertEqual(vectors, [[0.1, 0.2, 0.3], [0.3, 0.2, 0.1]])
-        self.assertEqual(client.embeddings.kwargs["model"], "text-embedding-3-small")
+        self.assertEqual(client.embeddings.kwargs["model"], openai_client.DEFAULT_EMBEDDING_MODEL)
         self.assertEqual(client.embeddings.kwargs["input"], ["coffee a", "coffee b"])
 
     def test_embed_coffee_record_builds_expected_text_payload(self) -> None:
         client = _EmbeddingClient([[0.11, 0.22, 0.33]])
 
-        with patch.object(embed_coffee, "get_client", return_value=client):
+        with patch.object(openai_client, "get_openai_client", return_value=client):
             vector = embed_coffee.embed_coffee_record(_coffee_record())
 
         self.assertEqual(vector, [0.11, 0.22, 0.33])
-        self.assertEqual(client.embeddings.kwargs["model"], "text-embedding-3-small")
+        self.assertEqual(client.embeddings.kwargs["model"], openai_client.DEFAULT_EMBEDDING_MODEL)
         self.assertIn("Name: Kenya Example", client.embeddings.kwargs["input"][0])
         self.assertIn("Process: washed", client.embeddings.kwargs["input"][0])
         self.assertIn("Tasting notes: blackberry, citrus", client.embeddings.kwargs["input"][0])
+
+    def test_openai_gateway_missing_key_includes_purpose(self) -> None:
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            patch.object(openai_client, "load_dotenv", return_value=False),
+        ):
+            openai_client.reset_openai_client_cache()
+
+            with self.assertRaisesRegex(RuntimeError, "OPENAI_API_KEY is required for review parsing"):
+                openai_client.get_openai_client("review parsing")
+
+    def test_openai_gateway_reuses_cached_client(self) -> None:
+        with (
+            patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}, clear=True),
+            patch.object(openai_client, "OpenAI", side_effect=[object()]) as openai,
+        ):
+            openai_client.reset_openai_client_cache()
+
+            first = openai_client.get_openai_client("review parsing")
+            second = openai_client.get_openai_client("coffee embeddings")
+
+        self.assertIs(first, second)
+        openai.assert_called_once_with(api_key="test-key")
 
 
 if __name__ == "__main__":

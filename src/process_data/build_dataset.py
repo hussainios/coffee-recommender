@@ -18,6 +18,7 @@ for path in (SRC_DIR, PROCESS_DATA_DIR):
 from process_data.parse_metadata import parse_metadata
 from process_data.extract_sensory import extract_sensory_vector_llm
 from process_data.embed_coffee import build_embedding_records
+from openai_client import DEFAULT_CHAT_MODEL, DEFAULT_EMBEDDING_MODEL
 
 
 def main(raw_dir: Path, output_dir: Path, sensory_model: str, embedding_model: str) -> None:
@@ -59,8 +60,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--raw-dir", default="data/raw")
     parser.add_argument("--output-dir", default="data/processed")
-    parser.add_argument("--sensory-model", default="gpt-5.4-nano")
-    parser.add_argument("--embedding-model", default="text-embedding-3-small")
+    parser.add_argument("--sensory-model", default=DEFAULT_CHAT_MODEL)
+    parser.add_argument("--embedding-model", default=DEFAULT_EMBEDDING_MODEL)
 
     args = parser.parse_args()
 

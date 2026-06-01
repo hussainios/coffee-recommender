@@ -454,15 +454,3 @@ def recommend_from_landscape(
 
     recommendations.sort(key=lambda item: item["score"], reverse=True)
     return recommendations[:top_k]
-
-
-def recommend_from_landscape_paths(
-    reviews: list[ReviewEvent],
-    coffees_path: str | Path,
-    sensory_path: str | Path,
-    embeddings_path: str | Path,
-    top_k: int = 5,
-    config: LandscapeConfig = LandscapeConfig(),
-) -> list[dict[str, Any]]:
-    features = load_feature_index(coffees_path, sensory_path, embeddings_path)
-    return recommend_from_landscape(features, reviews, top_k=top_k, config=config)

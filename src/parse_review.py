@@ -1,36 +1,16 @@
 from __future__ import annotations
 
 import json
-import os
 import sys
 from pathlib import Path
 from typing import Any
-
-from dotenv import load_dotenv
-from openai import OpenAI
 
 SRC_DIR = Path(__file__).resolve().parent
 if str(SRC_DIR) not in sys.path:
     sys.path.insert(0, str(SRC_DIR))
 
 from landscape import CoffeeFeatures, ReviewEvent, SENSORY_DIMENSIONS
-
-load_dotenv()
-
-client = None
-
-
-def get_client() -> OpenAI:
-    global client
-    if client is None:
-        api_key = os.environ.get("OPENAI_API_KEY")
-        if not api_key:
-            raise RuntimeError(
-                "OPENAI_API_KEY is required for review parsing. "
-                "Add it to .env or export it before calling parse_review_event."
-            )
-        client = OpenAI(api_key=api_key)
-    return client
+import openai_client
 
 
 REVIEW_EVENT_JSON_SCHEMA: dict[str, Any] = {
@@ -126,7 +106,7 @@ def _to_review_event(parsed: dict[str, Any], reviewed_coffee: CoffeeFeatures) ->
 def parse_review_event(
     review_text: str,
     reviewed_coffee: CoffeeFeatures,
-    model: str = "gpt-5.4-nano",
+    model: str = openai_client.DEFAULT_CHAT_MODEL,
     temperature: float = 0.0,
 ) -> ReviewEvent:
     prompt = f"""
@@ -158,7 +138,7 @@ User review:
 {review_text}
 """.strip()
 
-    response = get_client().responses.create(
+    response = openai_client.get_openai_client("review parsing").responses.create(
         model=model,
         input=prompt,
         temperature=temperature,

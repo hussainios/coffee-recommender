@@ -6,11 +6,16 @@ from pathlib import Path
 
 import pandas as pd
 
+SRC_DIR = Path(__file__).resolve().parents[1]
 PROCESS_DATA_DIR = Path(__file__).resolve().parent
-if str(PROCESS_DATA_DIR) not in sys.path:
-    sys.path.insert(0, str(PROCESS_DATA_DIR))
+
+for path in (SRC_DIR, PROCESS_DATA_DIR):
+    path_str = str(path)
+    if path_str not in sys.path:
+        sys.path.insert(0, path_str)
 
 from process_data.embed_coffee import build_embedding_records
+from openai_client import DEFAULT_EMBEDDING_MODEL
 
 
 def main(coffees_path: Path, output_path: Path, model: str) -> None:
@@ -28,7 +33,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate coffee text embeddings.")
     parser.add_argument("--coffees-path", default="data/processed/coffees.csv")
     parser.add_argument("--output-path", default="data/processed/coffee_embeddings.csv")
-    parser.add_argument("--model", default="text-embedding-3-small")
+    parser.add_argument("--model", default=DEFAULT_EMBEDDING_MODEL)
 
     args = parser.parse_args()
     main(

@@ -16,6 +16,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from process_data import build_dataset, build_embeddings  # noqa: E402
+from openai_client import DEFAULT_CHAT_MODEL, DEFAULT_EMBEDDING_MODEL  # noqa: E402
 from schemas import CoffeeRecord, Process, RoastLevel, SensoryVector  # noqa: E402
 
 
@@ -96,13 +97,13 @@ class PipelineTests(unittest.TestCase):
                     return_value=[
                         {
                             "coffee_id": "coffee-a",
-                            "embedding_model": "text-embedding-3-small",
+                            "embedding_model": DEFAULT_EMBEDDING_MODEL,
                             "embedding_text": "A",
                             "embedding": "[0.1, 0.2, 0.3]",
                         },
                         {
                             "coffee_id": "coffee-b",
-                            "embedding_model": "text-embedding-3-small",
+                            "embedding_model": DEFAULT_EMBEDDING_MODEL,
                             "embedding_text": "B",
                             "embedding": "[0.3, 0.2, 0.1]",
                         },
@@ -112,8 +113,8 @@ class PipelineTests(unittest.TestCase):
                 build_dataset.main(
                     raw_dir=raw_dir,
                     output_dir=output_dir,
-                    sensory_model="gpt-5.4-nano",
-                    embedding_model="text-embedding-3-small",
+                    sensory_model=DEFAULT_CHAT_MODEL,
+                    embedding_model=DEFAULT_EMBEDDING_MODEL,
                 )
 
             coffees = pd.read_csv(output_dir / "coffees.csv")
@@ -151,13 +152,13 @@ class PipelineTests(unittest.TestCase):
                 return_value=[
                     {
                         "coffee_id": "coffee-a",
-                        "embedding_model": "text-embedding-3-small",
+                        "embedding_model": DEFAULT_EMBEDDING_MODEL,
                         "embedding_text": "A",
                         "embedding": "[0.1, 0.2, 0.3]",
                     },
                     {
                         "coffee_id": "coffee-b",
-                        "embedding_model": "text-embedding-3-small",
+                        "embedding_model": DEFAULT_EMBEDDING_MODEL,
                         "embedding_text": "B",
                         "embedding": "[0.3, 0.2, 0.1]",
                     },
@@ -166,7 +167,7 @@ class PipelineTests(unittest.TestCase):
                 build_embeddings.main(
                     coffees_path=coffees_path,
                     output_path=output_path,
-                    model="text-embedding-3-small",
+                    model=DEFAULT_EMBEDDING_MODEL,
                 )
 
             embeddings = pd.read_csv(output_path)
