@@ -4,6 +4,7 @@ import hashlib
 import re
 import sys
 from pathlib import Path
+from typing import cast
 from urllib.parse import urlsplit, urlunsplit
 
 SRC_DIR = Path(__file__).resolve().parents[1]
@@ -305,7 +306,7 @@ def parse_metadata_text(
         currency="GBP",
         weight_g=parse_weight_g(text),
         brew_methods=parse_brew_methods(text),
-        source_url=source_url,
+        source_url=cast(object, source_url),
         source_file=source,
     )
 

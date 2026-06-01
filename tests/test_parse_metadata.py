@@ -7,14 +7,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
-PROCESS_DATA = SRC / "process_data"
 
-for path in (SRC, PROCESS_DATA):
-    path_str = str(path)
-    if path_str not in sys.path:
-        sys.path.insert(0, path_str)
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
 
-from parse_metadata import (  # noqa: E402
+from process_data.parse_metadata import (  # noqa: E402
     parse_brew_methods,
     parse_metadata_text,
     parse_metadata,

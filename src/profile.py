@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import cast
+
 from typing import TypedDict
 
 
@@ -44,7 +46,7 @@ PROCESS_PREFERENCE_DIMENSIONS: tuple[str, ...] = (
 def create_empty_profile() -> UserProfile:
     profile = {dimension: 0.0 for dimension in PROFILE_DIMENSIONS}
     profile.update({dimension: 0.0 for dimension in PROCESS_PREFERENCE_DIMENSIONS})
-    return profile
+    return cast(UserProfile, profile)
 
 
 def clip(value: float, minimum: float = -1.0, maximum: float = 1.0) -> float:
@@ -59,13 +61,13 @@ def update_profile(
     updated = dict(profile)
 
     for dimension in PROFILE_DIMENSIONS:
-        current = float(profile.get(dimension, 0.0))
+        current = profile.get(dimension, 0.0)
         change = float(delta.get(dimension, 0.0))
-        updated[dimension] = clip(current + learning_rate * change)
+        updated[dimension] = clip(float(current) + learning_rate * change)
 
     for dimension in PROCESS_PREFERENCE_DIMENSIONS:
-        current = float(profile.get(dimension, 0.0))
+        current = profile.get(dimension, 0.0)
         change = float(delta.get(dimension, 0.0))
-        updated[dimension] = clip(current + learning_rate * change)
+        updated[dimension] = clip(float(current) + learning_rate * change)
 
-    return updated
+    return cast(UserProfile, updated)

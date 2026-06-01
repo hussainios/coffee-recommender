@@ -122,6 +122,12 @@ pytest
 
 Tests cover review parsing, landscape scoring, URL-reviewed coffees, multi-review state helpers, and data parsing.
 
+## Type Checking
+
+```bash
+.venv/bin/python -m mypy
+```
+
 ## Limitations
 
 - Requires OpenAI API calls for sensory extraction, embeddings, and review parsing.
