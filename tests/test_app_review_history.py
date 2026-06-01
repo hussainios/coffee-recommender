@@ -14,7 +14,13 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from app import append_review_event, build_scoring_features, reset_review_history  # noqa: E402
+from app_state import (  # noqa: E402
+    append_review_event,
+    build_scoring_features,
+    initialise_review_state,
+    reset_review_history,
+    reset_review_history_if_data_paths_changed,
+)
 from landscape import CoffeeFeatures  # noqa: E402
 
 
@@ -46,6 +52,20 @@ def _coffee(coffee_id: str) -> CoffeeFeatures:
 
 
 class ReviewHistoryHelperTests(unittest.TestCase):
+    def test_initialise_review_state_adds_missing_defaults(self) -> None:
+        state = SimpleNamespace()
+
+        initialise_review_state(state)
+
+        self.assertIsNone(state.last_event)
+        self.assertEqual(state.last_recommendations, [])
+        self.assertEqual(state.review_events, [])
+        self.assertEqual(state.reviewed_feature_overrides, {})
+        self.assertIsNone(state.url_reviewed_coffee)
+        self.assertEqual(state.url_reviewed_source, "")
+        self.assertEqual(state.input_mode, "Catalogue coffee")
+        self.assertIsNone(state.data_paths_key)
+
     def test_append_catalogue_review_updates_events_without_override(self) -> None:
         state = SimpleNamespace(
             review_events=[],
@@ -102,6 +122,26 @@ class ReviewHistoryHelperTests(unittest.TestCase):
         self.assertEqual(state.reviewed_feature_overrides, {})
         self.assertIsNone(state.last_event)
         self.assertEqual(state.last_recommendations, [])
+
+    def test_reset_review_history_if_data_paths_changed_preserves_or_resets_state(self) -> None:
+        state = SimpleNamespace(
+            data_paths_key=None,
+            review_events=[{"coffee_id": "a"}],
+            reviewed_feature_overrides={"a": _coffee("a")},
+            last_event={"coffee_id": "a"},
+            last_recommendations=[{"coffee_id": "b"}],
+        )
+
+        reset_review_history_if_data_paths_changed(state, ("coffees.csv", "sensory.csv", "embeddings.csv"))
+
+        self.assertEqual(state.data_paths_key, ("coffees.csv", "sensory.csv", "embeddings.csv"))
+        self.assertEqual(state.review_events, [{"coffee_id": "a"}])
+
+        reset_review_history_if_data_paths_changed(state, ("new.csv", "sensory.csv", "embeddings.csv"))
+
+        self.assertEqual(state.data_paths_key, ("new.csv", "sensory.csv", "embeddings.csv"))
+        self.assertEqual(state.review_events, [])
+        self.assertEqual(state.reviewed_feature_overrides, {})
 
 
 if __name__ == "__main__":
