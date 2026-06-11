@@ -3,18 +3,17 @@ from __future__ import annotations
 import unittest
 from types import SimpleNamespace
 
-from coffee_recommender.app_state import (
-    append_review_event,
-    build_scoring_features,
-    initialise_review_state,
-    reset_review_history,
-    reset_review_history_if_data_paths_changed,
+from coffee_recommender.api_models import (
+    CoffeeFeaturesPayload,
+    RecommendationPayload,
+    ReviewEventPayload,
 )
-from coffee_recommender.landscape import CoffeeFeatures, ReviewEvent
+from coffee_recommender.app_state import initialise_review_state, reset_review_history
+from coffee_recommender.review_session import append_review_to_session, create_review_session
 
 
-def _coffee(coffee_id: str) -> CoffeeFeatures:
-    return CoffeeFeatures(
+def _coffee(coffee_id: str) -> CoffeeFeaturesPayload:
+    return CoffeeFeaturesPayload(
         coffee_id=coffee_id,
         name=coffee_id.replace("_", " ").title(),
         sensory={
@@ -41,96 +40,68 @@ def _coffee(coffee_id: str) -> CoffeeFeatures:
 
 
 class ReviewHistoryHelperTests(unittest.TestCase):
-    def test_initialise_review_state_adds_missing_defaults(self) -> None:
+    def test_initialise_review_state_adds_review_session_defaults(self) -> None:
         state = SimpleNamespace()
 
         initialise_review_state(state)
 
-        self.assertIsNone(state.last_event)
-        self.assertEqual(state.last_recommendations, [])
-        self.assertEqual(state.review_events, [])
-        self.assertEqual(state.reviewed_feature_overrides, {})
+        self.assertEqual(state.review_session.review_events, [])
+        self.assertEqual(state.review_session.reviewed_feature_overrides, {})
         self.assertIsNone(state.url_reviewed_coffee)
         self.assertEqual(state.url_reviewed_source, "")
         self.assertEqual(state.input_mode, "Catalogue coffee")
-        self.assertIsNone(state.data_paths_key)
 
-    def test_append_catalogue_review_updates_events_without_override(self) -> None:
-        state = SimpleNamespace(
-            review_events=[],
-            reviewed_feature_overrides={},
-            last_event=None,
-            last_recommendations=[],
+    def test_append_catalogue_review_updates_session_without_override(self) -> None:
+        session = create_review_session()
+        event = ReviewEventPayload(coffee_id="catalogue", overall=1.0)
+        recommendations = [RecommendationPayload(coffee_id="candidate", name="Candidate", score=0.9, temperature=0.2)]
+
+        updated = append_review_to_session(
+            session,
+            event,
+            _coffee("catalogue"),
+            is_temporary=False,
+            recommendations=recommendations,
         )
-        event: ReviewEvent = {"coffee_id": "catalogue", "overall": 1.0}
 
-        append_review_event(state, event, _coffee("catalogue"), is_temporary=False)
-
-        self.assertEqual(state.review_events, [event])
-        self.assertEqual(state.last_event, event)
-        self.assertEqual(state.reviewed_feature_overrides, {})
+        self.assertEqual(updated.review_events, [event])
+        self.assertEqual(updated.last_event, event)
+        self.assertEqual(updated.reviewed_feature_overrides, {})
+        self.assertEqual(updated.last_recommendations, recommendations)
 
     def test_append_url_review_stores_feature_override(self) -> None:
-        state = SimpleNamespace(
-            review_events=[],
-            reviewed_feature_overrides={},
-            last_event=None,
-            last_recommendations=[],
-        )
+        session = create_review_session()
         coffee = _coffee("temporary-url")
-        event: ReviewEvent = {"coffee_id": coffee.coffee_id, "overall": -0.5}
+        event = ReviewEventPayload(coffee_id=coffee.coffee_id, overall=-0.5)
 
-        append_review_event(state, event, coffee, is_temporary=True)
-
-        self.assertEqual(state.review_events, [event])
-        self.assertEqual(state.reviewed_feature_overrides[coffee.coffee_id], coffee)
-
-    def test_build_scoring_features_merges_overrides(self) -> None:
-        catalogue = _coffee("catalogue")
-        temporary = _coffee("temporary")
-
-        features = build_scoring_features(
-            {catalogue.coffee_id: catalogue},
-            {temporary.coffee_id: temporary},
+        updated = append_review_to_session(
+            session,
+            event,
+            coffee,
+            is_temporary=True,
+            recommendations=[],
         )
 
-        self.assertEqual(features["catalogue"], catalogue)
-        self.assertEqual(features["temporary"], temporary)
+        self.assertEqual(updated.review_events, [event])
+        self.assertEqual(updated.reviewed_feature_overrides[coffee.coffee_id], coffee)
 
-    def test_reset_review_history_clears_review_state(self) -> None:
-        state = SimpleNamespace(
-            review_events=[{"coffee_id": "a"}],
-            reviewed_feature_overrides={"a": _coffee("a")},
-            last_event={"coffee_id": "a"},
-            last_recommendations=[{"coffee_id": "b"}],
+    def test_reset_review_history_replaces_session_payload(self) -> None:
+        state = SimpleNamespace()
+        initialise_review_state(state)
+        state.review_session = append_review_to_session(
+            state.review_session,
+            ReviewEventPayload(coffee_id="a", overall=1.0),
+            _coffee("a"),
+            is_temporary=True,
+            recommendations=[RecommendationPayload(coffee_id="b", name="B", score=0.5, temperature=0.2)],
         )
 
         reset_review_history(state)
 
-        self.assertEqual(state.review_events, [])
-        self.assertEqual(state.reviewed_feature_overrides, {})
-        self.assertIsNone(state.last_event)
-        self.assertEqual(state.last_recommendations, [])
-
-    def test_reset_review_history_if_data_paths_changed_preserves_or_resets_state(self) -> None:
-        state = SimpleNamespace(
-            data_paths_key=None,
-            review_events=[{"coffee_id": "a"}],
-            reviewed_feature_overrides={"a": _coffee("a")},
-            last_event={"coffee_id": "a"},
-            last_recommendations=[{"coffee_id": "b"}],
-        )
-
-        reset_review_history_if_data_paths_changed(state, ("coffees.csv", "sensory.csv", "embeddings.csv"))
-
-        self.assertEqual(state.data_paths_key, ("coffees.csv", "sensory.csv", "embeddings.csv"))
-        self.assertEqual(state.review_events, [{"coffee_id": "a"}])
-
-        reset_review_history_if_data_paths_changed(state, ("new.csv", "sensory.csv", "embeddings.csv"))
-
-        self.assertEqual(state.data_paths_key, ("new.csv", "sensory.csv", "embeddings.csv"))
-        self.assertEqual(state.review_events, [])
-        self.assertEqual(state.reviewed_feature_overrides, {})
+        self.assertEqual(state.review_session.review_events, [])
+        self.assertEqual(state.review_session.reviewed_feature_overrides, {})
+        self.assertIsNone(state.review_session.last_event)
+        self.assertEqual(state.review_session.last_recommendations, [])
 
 
 if __name__ == "__main__":

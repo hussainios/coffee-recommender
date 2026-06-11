@@ -1,26 +1,12 @@
 from __future__ import annotations
 
-from pathlib import Path
-
+import plotly.graph_objects as go
 import streamlit as st
 
-from coffee_recommender.app_state import (
-    build_scoring_features,
-    initialise_review_state,
-    reset_review_history,
-    reset_review_history_if_data_paths_changed,
-)
-from coffee_recommender.coffee_service import (
-    build_coffee_options,
-    get_cached_url_selection,
-    load_catalogue,
-    normalise_optional_url,
-    prepare_url_selection,
-    select_catalogue_reviewed_coffee,
-    selection_from_url_reviewed_coffee,
-    submit_review,
-)
-from coffee_recommender.visualize_landscape import build_projected_score_landscape_figure
+from coffee_recommender.api_models import LandscapeRequest, SubmitReviewRequest
+from coffee_recommender.app_state import initialise_review_state, reset_review_history
+from coffee_recommender.config import get_api_base_url
+from coffee_recommender.streamlit_api_client import ApiClientError, StreamlitApiClient
 
 
 st.set_page_config(page_title="Coffee Recommender", page_icon="☕", layout="wide")
@@ -29,34 +15,26 @@ st.title("Coffee Recommender")
 st.write("Pick a coffee you reviewed, describe it, and inspect landscape-based recommendations.")
 
 initialise_review_state(st.session_state)
+client = StreamlitApiClient()
 
 with st.sidebar:
-    st.header("Data")
-    coffees_path = Path(st.text_input("Coffee CSV", value="data/processed/coffees.csv"))
-    sensory_path = Path(st.text_input("Sensory CSV", value="data/processed/coffee_sensory_vectors.csv"))
-    embeddings_path = Path(st.text_input("Embeddings CSV", value="data/processed/coffee_embeddings.csv"))
+    st.header("Backend")
+    st.caption(f"API: `{get_api_base_url()}`")
     top_k = st.slider("Top K", min_value=1, max_value=10, value=5)
     if st.button("Clear review history"):
         reset_review_history(st.session_state)
 
-missing_paths = [
-    path
-    for path in (coffees_path, sensory_path, embeddings_path)
-    if not path.exists()
-]
-if missing_paths:
-    for path in missing_paths:
-        st.error(f"Missing required file: {path}")
-    if embeddings_path in missing_paths:
-        st.info(
-            "Generate embeddings with: .venv/bin/python -m "
-            "coffee_recommender.process_data.build_embeddings"
-        )
+try:
+    coffee_summaries = client.list_catalogue_coffees()
+except ApiClientError as exc:
+    st.error(str(exc))
     st.stop()
 
-catalogue = load_catalogue(coffees_path, sensory_path, embeddings_path)
-reset_review_history_if_data_paths_changed(st.session_state, catalogue.data_paths_key)
-coffee_options = build_coffee_options(catalogue.coffees)
+coffee_options = {
+    f"{summary.name} ({summary.coffee_id})": summary.coffee_id
+    for summary in coffee_summaries
+}
+catalogue_name_lookup = {summary.coffee_id: summary.name for summary in coffee_summaries}
 
 input_mode = st.radio("Reviewed coffee source", options=["Catalogue coffee", "Coffee URL"], horizontal=True)
 if input_mode != st.session_state.input_mode:
@@ -66,38 +44,36 @@ selected_label = None
 reviewed_coffee = None
 reviewed_metadata = None
 reviewed_sensory = None
-url_value = ""
-normalized_url_value = ""
 selected_reviewed = None
+url_value = st.session_state.url_reviewed_source
 
 if input_mode == "Catalogue coffee":
     selected_label = st.selectbox("Reviewed coffee", options=list(coffee_options))
-    reviewed_coffee_id = coffee_options[selected_label]
-    selected_reviewed = select_catalogue_reviewed_coffee(catalogue, reviewed_coffee_id)
+    try:
+        selected_reviewed = client.get_catalogue_coffee(coffee_options[selected_label])
+    except ApiClientError as exc:
+        st.error(str(exc))
+        st.stop()
 else:
     url_value = st.text_input(
         "Coffee product URL",
         value=st.session_state.url_reviewed_source,
         placeholder="https://...",
     ).strip()
-    try:
-        normalized_url_value = normalise_optional_url(url_value)
-    except ValueError:
-        normalized_url_value = ""
     process_url = st.button("Process coffee URL")
 
     if process_url:
         try:
-            st.session_state.url_reviewed_coffee = prepare_url_selection(url_value)
-            st.session_state.url_reviewed_source = st.session_state.url_reviewed_coffee.url
-        except Exception as exc:
+            processed = client.process_reviewed_coffee_url(url_value)
+            st.session_state.url_reviewed_coffee = processed.reviewed_coffee
+            st.session_state.url_reviewed_source = processed.normalized_url
+        except ApiClientError as exc:
             st.error(str(exc))
 
-    selected_reviewed = get_cached_url_selection(
-        url_value,
-        st.session_state.url_reviewed_coffee,
-        st.session_state.url_reviewed_source,
-    )
+    if st.session_state.url_reviewed_coffee and url_value == st.session_state.url_reviewed_source:
+        selected_reviewed = st.session_state.url_reviewed_coffee
+    else:
+        selected_reviewed = None
 
 if selected_reviewed is not None:
     reviewed_coffee = selected_reviewed.features
@@ -112,33 +88,31 @@ review = st.text_area(
 
 if st.button("Add review and recommend", type="primary"):
     try:
-        is_temporary_reviewed_coffee = input_mode == "Coffee URL"
         if input_mode == "Coffee URL":
             if not url_value:
                 raise ValueError("Paste a coffee product URL before running the recommender.")
-            cached = st.session_state.url_reviewed_coffee
-            if cached is None or cached.url != normalized_url_value:
-                cached = prepare_url_selection(url_value)
-                st.session_state.url_reviewed_coffee = cached
-                st.session_state.url_reviewed_source = cached.url
-            selected_reviewed = selection_from_url_reviewed_coffee(cached)
-            reviewed_coffee = selected_reviewed.features
-            reviewed_metadata = selected_reviewed.metadata
-            reviewed_sensory = selected_reviewed.sensory
+            if st.session_state.url_reviewed_coffee is None or url_value != st.session_state.url_reviewed_source:
+                processed = client.process_reviewed_coffee_url(url_value)
+                st.session_state.url_reviewed_coffee = processed.reviewed_coffee
+                st.session_state.url_reviewed_source = processed.normalized_url
+            selected_reviewed = st.session_state.url_reviewed_coffee
 
-        result = submit_review(
-            session_state=st.session_state,
-            review_text=review,
-            reviewed_coffee=reviewed_coffee,
-            catalogue_features=catalogue.features,
-            top_k=top_k,
-            is_temporary=is_temporary_reviewed_coffee,
+        if selected_reviewed is None:
+            raise ValueError("Select or process a reviewed coffee before running the recommender.")
+
+        result = client.submit_review(
+            SubmitReviewRequest(
+                review_text=review,
+                reviewed_coffee=selected_reviewed,
+                top_k=top_k,
+                review_session=st.session_state.review_session,
+            )
         )
-    except Exception as exc:
+    except (ApiClientError, ValueError) as exc:
         st.error(str(exc))
         st.stop()
 
-    st.session_state.last_recommendations = result.recommendations
+    st.session_state.review_session = result.review_session
 
 col1, col2 = st.columns([0.9, 1.1])
 
@@ -161,40 +135,46 @@ with col1:
         st.json(reviewed_coffee.process)
 
     st.subheader("Latest Parsed Review Event")
-    if st.session_state.last_event:
-        st.json(st.session_state.last_event)
+    if st.session_state.review_session.last_event:
+        st.json(st.session_state.review_session.last_event.model_dump(mode="json"))
     else:
         st.info("Run the recommender to see the parsed event.")
 
     st.subheader("Review History")
-    if not st.session_state.review_events:
+    if not st.session_state.review_session.review_events:
         st.info("Added reviews will appear here.")
     else:
-        scoring_features = build_scoring_features(catalogue.features, st.session_state.reviewed_feature_overrides)
-        for index, event in enumerate(st.session_state.review_events, start=1):
-            reviewed = scoring_features.get(str(event.get("coffee_id", "")))
-            title = reviewed.name if reviewed else "Unknown coffee"
+        override_name_lookup = {
+            coffee_id: payload.name
+            for coffee_id, payload in st.session_state.review_session.reviewed_feature_overrides.items()
+        }
+        for index, event in enumerate(st.session_state.review_session.review_events, start=1):
+            title = (
+                catalogue_name_lookup.get(event.coffee_id)
+                or override_name_lookup.get(event.coffee_id)
+                or "Unknown coffee"
+            )
             with st.expander(f"{index}. {title}"):
-                st.caption(event.get("coffee_id", ""))
-                st.write(f"Overall: `{event.get('overall', 0.0)}`")
+                st.caption(event.coffee_id)
+                st.write(f"Overall: `{event.overall}`")
                 st.write("Change requests")
-                st.json(event.get("change_requests", {}))
+                st.json(event.change_requests)
                 st.write("Attribute opinions")
-                st.json(event.get("attribute_opinions", {}))
+                st.json(event.attribute_opinions)
 
 with col2:
     st.subheader("Recommendations")
-    if not st.session_state.last_recommendations:
+    if not st.session_state.review_session.last_recommendations:
         st.info("Run the recommender to see ranked coffees.")
     else:
-        for item in st.session_state.last_recommendations:
+        for item in st.session_state.review_session.last_recommendations:
             with st.container(border=True):
-                st.markdown(f"### {item['name']}")
-                st.caption(item["coffee_id"])
-                st.write(f"Score: `{item['score']}`")
-                st.write(f"Temperature: `{item['temperature']}`")
+                st.markdown(f"### {item.name}")
+                st.caption(item.coffee_id)
+                st.write(f"Score: `{item.score}`")
+                st.write(f"Temperature: `{item.temperature}`")
 
-                debug = item["debug"]
+                debug = item.debug
                 with st.expander("Structured coffee representation"):
                     st.json(debug["candidate"])
 
@@ -211,18 +191,21 @@ show_landscape_surface = st.checkbox(
     value=True,
     help="Visual aid only: the surface is interpolated between real scored coffees.",
 )
-if not st.session_state.review_events:
+if not st.session_state.review_session.review_events:
     st.info("Add at least one review to plot the score landscape.")
 else:
-    scoring_features = build_scoring_features(catalogue.features, st.session_state.reviewed_feature_overrides)
-    figure = build_projected_score_landscape_figure(
-        catalogue_features=catalogue.features,
-        scoring_features=scoring_features,
-        reviews=st.session_state.review_events,
-        top_recommendations=st.session_state.last_recommendations,
-        show_surface=show_landscape_surface,
-    )
-    if figure is None:
-        st.info("Need at least three coffees to project the score landscape.")
+    try:
+        landscape = client.build_landscape(
+            LandscapeRequest(
+                review_session=st.session_state.review_session,
+                show_surface=show_landscape_surface,
+            )
+        )
+    except ApiClientError as exc:
+        st.error(str(exc))
+        st.stop()
+
+    if landscape.figure is None:
+        st.info(landscape.message or "Need at least three coffees to project the score landscape.")
     else:
-        st.plotly_chart(figure, use_container_width=True)
+        st.plotly_chart(go.Figure(landscape.figure), use_container_width=True)
