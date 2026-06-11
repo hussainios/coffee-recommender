@@ -3,16 +3,15 @@ from __future__ import annotations
 import json
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
 from .api_models import (
     CatalogueCoffeeSummary,
-    LandscapeRequest,
     LandscapeResponse,
     ProcessUrlRequest,
-    ProcessUrlResponse,
-    ReviewedCoffeePayload,
+    ReviewedCoffeeDetails,
+    ReviewSessionPayload,
     SubmitReviewRequest,
     SubmitReviewResponse,
 )
@@ -63,17 +62,25 @@ class StreamlitApiClient:
         payload = self._request("GET", "/catalogue/coffees")
         return [CatalogueCoffeeSummary.model_validate(item) for item in payload]
 
-    def get_catalogue_coffee(self, coffee_id: str) -> ReviewedCoffeePayload:
-        payload = self._request("GET", f"/catalogue/coffees/{quote(coffee_id)}")
-        return ReviewedCoffeePayload.model_validate(payload)
+    def get_review_session(self) -> ReviewSessionPayload:
+        payload = self._request("GET", "/review-session")
+        return ReviewSessionPayload.model_validate(payload)
 
-    def process_reviewed_coffee_url(self, url: str) -> ProcessUrlResponse:
+    def clear_review_session(self) -> ReviewSessionPayload:
+        payload = self._request("DELETE", "/review-session")
+        return ReviewSessionPayload.model_validate(payload)
+
+    def get_catalogue_reviewed_coffee(self, coffee_id: str) -> ReviewedCoffeeDetails:
+        payload = self._request("GET", f"/reviewed-coffees/catalogue/{quote(coffee_id)}")
+        return ReviewedCoffeeDetails.model_validate(payload)
+
+    def get_reviewed_coffee_from_url(self, url: str) -> ReviewedCoffeeDetails:
         payload = self._request(
             "POST",
-            "/reviewed-coffee/url",
+            "/reviewed-coffees/from-url",
             ProcessUrlRequest(url=url).model_dump(mode="json"),
         )
-        return ProcessUrlResponse.model_validate(payload)
+        return ReviewedCoffeeDetails.model_validate(payload)
 
     def submit_review(self, request: SubmitReviewRequest) -> SubmitReviewResponse:
         payload = self._request(
@@ -83,10 +90,7 @@ class StreamlitApiClient:
         )
         return SubmitReviewResponse.model_validate(payload)
 
-    def build_landscape(self, request: LandscapeRequest) -> LandscapeResponse:
-        payload = self._request(
-            "POST",
-            "/landscape",
-            request.model_dump(mode="json"),
-        )
+    def build_landscape(self, show_surface: bool = True) -> LandscapeResponse:
+        query = urlencode({"show_surface": str(show_surface).lower()})
+        payload = self._request("GET", f"/review-session/landscape?{query}")
         return LandscapeResponse.model_validate(payload)

@@ -91,9 +91,15 @@ class ApiTests(unittest.TestCase):
             coffees = client.get("/catalogue/coffees")
             self.assertEqual(coffees.status_code, 200)
             self.assertEqual(coffees.json()[0]["coffee_id"], "candidate")
+            self.assertEqual(set(coffees.json()[0]), {"coffee_id", "name"})
 
-            reviewed = client.get("/catalogue/coffees/reviewed")
+            session = client.get("/review-session")
+            self.assertEqual(session.status_code, 200)
+            self.assertEqual(session.json()["review_events"], [])
+
+            reviewed = client.get("/reviewed-coffees/catalogue/reviewed")
             self.assertEqual(reviewed.status_code, 200)
+            self.assertEqual(reviewed.json()["source_type"], "catalogue")
 
             with patch.object(
                 coffee_service,
@@ -111,12 +117,6 @@ class ApiTests(unittest.TestCase):
                         "review_text": "Loved it.",
                         "reviewed_coffee": reviewed.json(),
                         "top_k": 1,
-                        "review_session": {
-                            "review_events": [],
-                            "reviewed_feature_overrides": {},
-                            "last_event": None,
-                            "last_recommendations": [],
-                        },
                     },
                 )
 
@@ -125,15 +125,17 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(payload["event"]["coffee_id"], "reviewed")
             self.assertEqual(payload["review_session"]["last_recommendations"][0]["coffee_id"], "candidate")
 
-            landscape = client.post(
-                "/landscape",
-                json={
-                    "review_session": payload["review_session"],
-                    "show_surface": True,
-                },
-            )
+            current_session = client.get("/review-session")
+            self.assertEqual(current_session.status_code, 200)
+            self.assertEqual(current_session.json()["last_event"]["coffee_id"], "reviewed")
+
+            landscape = client.get("/review-session/landscape?show_surface=true")
             self.assertEqual(landscape.status_code, 200)
             self.assertIn("figure", landscape.json())
+
+            cleared = client.delete("/review-session")
+            self.assertEqual(cleared.status_code, 200)
+            self.assertEqual(cleared.json()["review_events"], [])
 
     def test_url_endpoint_translates_value_errors(self) -> None:
         client = TestClient(create_app(ApplicationService(
@@ -145,7 +147,7 @@ class ApiTests(unittest.TestCase):
         )))
 
         with patch.object(application, "prepare_url_selection", side_effect=ValueError("Bad URL")):
-            response = client.post("/reviewed-coffee/url", json={"url": "notaurl"})
+            response = client.post("/reviewed-coffees/from-url", json={"url": "notaurl"})
 
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json()["detail"], "Bad URL")

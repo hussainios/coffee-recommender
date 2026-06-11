@@ -8,7 +8,7 @@ from unittest.mock import patch
 import pandas as pd
 
 from coffee_recommender import coffee_service
-from coffee_recommender.api_models import ReviewedCoffeePayload, SubmitReviewRequest
+from coffee_recommender.api_models import SubmitReviewRequest
 from coffee_recommender.application import ApplicationService
 from coffee_recommender.coffee_service import (
     build_coffee_options,
@@ -146,7 +146,7 @@ class AppFlowTests(unittest.TestCase):
                 reviewed_coffee=reviewed,
                 catalogue_features={candidate.coffee_id: candidate},
                 top_k=1,
-                is_temporary=True,
+                is_external_url=True,
             )
 
         parse.assert_called_once_with("Loved it.", reviewed)
@@ -188,7 +188,7 @@ class AppFlowTests(unittest.TestCase):
                     embeddings_path=embeddings_path,
                 )
             )
-            reviewed = service.get_catalogue_coffee("reviewed")
+            reviewed = service.get_catalogue_reviewed_coffee("reviewed")
 
             with patch.object(
                 coffee_service,
@@ -205,7 +205,6 @@ class AppFlowTests(unittest.TestCase):
                         review_text="Loved it.",
                         reviewed_coffee=reviewed,
                         top_k=1,
-                        review_session=create_review_session(),
                     )
                 )
 
