@@ -3,8 +3,9 @@ from __future__ import annotations
 import hashlib
 import re
 from pathlib import Path
-from typing import cast
 from urllib.parse import urlsplit, urlunsplit
+
+from pydantic import HttpUrl
 
 from ..schemas import BrewMethod, CoffeeRecord, Process, RoastLevel
 
@@ -279,6 +280,7 @@ def parse_metadata_text(
     source_path = Path(source)
     name = parse_name(text, source_path)
     coffee_id = build_coffee_id(name, source, source_url=source_url)
+    validated_source_url = HttpUrl(source_url) if source_url else None
 
     return CoffeeRecord(
         coffee_id=coffee_id,
@@ -297,7 +299,7 @@ def parse_metadata_text(
         currency="GBP",
         weight_g=parse_weight_g(text),
         brew_methods=parse_brew_methods(text),
-        source_url=cast(object, source_url),
+        source_url=validated_source_url,
         source_file=source,
     )
 

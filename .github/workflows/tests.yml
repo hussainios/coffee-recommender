@@ -8,7 +8,7 @@ on:
   pull_request:
 
 jobs:
-  pytest:
+  checks:
     runs-on: ubuntu-latest
 
     steps:
@@ -28,3 +28,6 @@ jobs:
 
       - name: Run tests
         run: python -m pytest
+
+      - name: Run mypy
+        run: python -m mypy
