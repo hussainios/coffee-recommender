@@ -152,6 +152,17 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.json()["detail"], "Bad URL")
 
+    def test_health_includes_cors_headers_for_frontend_dev_origin(self) -> None:
+        client = TestClient(create_app())
+
+        response = client.get(
+            "/health",
+            headers={"Origin": "http://localhost:5173"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["access-control-allow-origin"], "http://localhost:5173")
+
 
 if __name__ == "__main__":
     unittest.main()

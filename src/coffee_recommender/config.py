@@ -32,3 +32,13 @@ def get_data_paths() -> DataPaths:
 
 def get_api_base_url() -> str:
     return os.environ.get("COFFEE_RECOMMENDER_API_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+
+
+def get_cors_origins() -> list[str]:
+    raw_origins = os.environ.get("COFFEE_RECOMMENDER_CORS_ORIGINS")
+    if raw_origins:
+        return [origin.strip().rstrip("/") for origin in raw_origins.split(",") if origin.strip()]
+    return [
+        "http://127.0.0.1:5173",
+        "http://localhost:5173",
+    ]

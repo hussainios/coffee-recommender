@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from fastapi import FastAPI, HTTPException
 from fastapi import Query
+from fastapi.middleware.cors import CORSMiddleware
 
 from .api_models import ProcessUrlRequest, SubmitReviewRequest
 from .application import ApplicationService, create_application_service
+from .config import get_cors_origins
 
 
 def _translate_exception(exc: Exception) -> HTTPException:
@@ -22,6 +24,13 @@ def _translate_exception(exc: Exception) -> HTTPException:
 def create_app(service: ApplicationService | None = None) -> FastAPI:
     app = FastAPI(title="Coffee Recommender API")
     application_service = service or create_application_service()
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=get_cors_origins(),
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
     @app.get("/health")
     def health() -> dict[str, str]:

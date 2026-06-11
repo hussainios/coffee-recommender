@@ -41,6 +41,12 @@ class RecommendationPayload(BaseModel):
     name: str | None = None
     score: float
     temperature: float
+    roaster: str | None = None
+    origin_country: str | None = None
+    producer: str | None = None
+    process: str | None = None
+    tasting_notes: list[str] = Field(default_factory=list)
+    source_url: str | None = None
     debug: dict[str, Any] = Field(default_factory=dict)
 
 

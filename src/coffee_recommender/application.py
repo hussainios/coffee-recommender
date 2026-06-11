@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import math
+from ast import literal_eval
 from dataclasses import dataclass, field
 
 import plotly.io as pio
@@ -85,19 +87,53 @@ class ApplicationService:
         )
 
     def submit_review(self, request: SubmitReviewRequest) -> SubmitReviewResponse:
+        catalogue = self.load_catalogue()
         result = submit_review(
             review_session=self._review_session,
             review_text=request.review_text,
             reviewed_coffee=payload_to_coffee_features(request.reviewed_coffee.features),
-            catalogue_features=self.load_catalogue().features,
+            catalogue_features=catalogue.features,
             top_k=request.top_k,
             is_external_url=request.reviewed_coffee.source_type == "external_url",
         )
         self._review_session = result.review_session
+        metadata_lookup = catalogue.coffees.set_index("coffee_id").to_dict(orient="index")
+
+        enriched_recommendations = []
+        for recommendation in result.recommendations:
+            metadata = metadata_lookup.get(recommendation.coffee_id, {})
+            tasting_notes_raw = metadata.get("tasting_notes")
+            tasting_notes = []
+            if isinstance(tasting_notes_raw, str) and tasting_notes_raw.strip():
+                try:
+                    parsed_notes = literal_eval(tasting_notes_raw)
+                    if isinstance(parsed_notes, list):
+                        tasting_notes = [str(note) for note in parsed_notes if str(note).strip()]
+                except (ValueError, SyntaxError):
+                    tasting_notes = []
+
+            enriched_recommendations.append(
+                recommendation.model_copy(
+                    update={
+                        "roaster": _optional_string(metadata.get("roaster")),
+                        "origin_country": _optional_string(metadata.get("origin_country")),
+                        "producer": _optional_string(metadata.get("producer")),
+                        "process": _optional_string(metadata.get("process")),
+                        "tasting_notes": tasting_notes,
+                        "source_url": _optional_string(metadata.get("source_url")),
+                    }
+                )
+            )
+
         return SubmitReviewResponse(
             event=result.event,
-            review_session=result.review_session,
-            recommendations=result.recommendations,
+            review_session=ReviewSessionPayload(
+                review_events=result.review_session.review_events,
+                reviewed_feature_overrides=result.review_session.reviewed_feature_overrides,
+                last_event=result.review_session.last_event,
+                last_recommendations=enriched_recommendations,
+            ),
+            recommendations=enriched_recommendations,
         )
 
     def build_landscape(self, show_surface: bool = True) -> LandscapeResponse:
@@ -129,3 +165,12 @@ class ApplicationService:
 
 def create_application_service(data_paths: DataPaths | None = None) -> ApplicationService:
     return ApplicationService(data_paths=data_paths or get_data_paths())
+
+
+def _optional_string(value: object) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, float) and math.isnan(value):
+        return None
+    text = str(value).strip()
+    return text or None
