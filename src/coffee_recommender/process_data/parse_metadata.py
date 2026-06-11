@@ -2,20 +2,11 @@ from __future__ import annotations
 
 import hashlib
 import re
-import sys
 from pathlib import Path
 from typing import cast
 from urllib.parse import urlsplit, urlunsplit
 
-SRC_DIR = Path(__file__).resolve().parents[1]
-PROCESS_DATA_DIR = Path(__file__).resolve().parent
-
-for path in (SRC_DIR, PROCESS_DATA_DIR):
-    path_str = str(path)
-    if path_str not in sys.path:
-        sys.path.insert(0, path_str)
-
-from schemas import BrewMethod, CoffeeRecord, Process, RoastLevel
+from ..schemas import BrewMethod, CoffeeRecord, Process, RoastLevel
 
 
 PROCESS_PATTERNS: list[tuple[str, Process]] = [

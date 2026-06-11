@@ -5,8 +5,8 @@ from typing import Any
 
 import pandas as pd
 
-import openai_client
-from schemas import CoffeeRecord
+from .. import openai_client
+from ..schemas import CoffeeRecord
 
 
 def _clean(value: Any) -> str:

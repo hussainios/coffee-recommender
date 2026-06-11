@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -8,16 +7,9 @@ from unittest.mock import patch
 
 import pandas as pd
 
-
-ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / "src"
-
-if str(SRC) not in sys.path:
-    sys.path.insert(0, str(SRC))
-
-from process_data import build_dataset, build_embeddings  # noqa: E402
-from openai_client import DEFAULT_CHAT_MODEL, DEFAULT_EMBEDDING_MODEL  # noqa: E402
-from schemas import CoffeeRecord, Process, RoastLevel, SensoryVector  # noqa: E402
+from coffee_recommender.openai_client import DEFAULT_CHAT_MODEL, DEFAULT_EMBEDDING_MODEL
+from coffee_recommender.process_data import build_dataset, build_embeddings
+from coffee_recommender.schemas import CoffeeRecord, Process, RoastLevel, SensoryVector
 
 
 def _coffee_record(coffee_id: str, name: str, source_file: str) -> CoffeeRecord:

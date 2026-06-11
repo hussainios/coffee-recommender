@@ -3,26 +3,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from html import unescape
 from html.parser import HTMLParser
-from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-import sys
-
-SRC_DIR = Path(__file__).resolve().parent
-PROCESS_DATA_DIR = SRC_DIR / "process_data"
-
-for path in (SRC_DIR, PROCESS_DATA_DIR):
-    path_str = str(path)
-    if path_str not in sys.path:
-        sys.path.insert(0, path_str)
-
-from landscape import CoffeeFeatures, build_single_coffee_features
-from process_data.embed_coffee import embed_coffee_record
-from process_data.extract_sensory import extract_sensory_vector_llm
-from process_data.parse_metadata import normalise_source_url, parse_metadata_text
-from openai_client import DEFAULT_CHAT_MODEL, DEFAULT_EMBEDDING_MODEL
-from schemas import CoffeeRecord, SensoryVector
+from .landscape import CoffeeFeatures, build_single_coffee_features
+from .openai_client import DEFAULT_CHAT_MODEL, DEFAULT_EMBEDDING_MODEL
+from .process_data.embed_coffee import embed_coffee_record
+from .process_data.extract_sensory import extract_sensory_vector_llm
+from .process_data.parse_metadata import normalise_source_url, parse_metadata_text
+from .schemas import CoffeeRecord, SensoryVector
 
 
 USER_AGENT = "CoffeeRecommender/1.0 (+https://local.streamlit.app)"

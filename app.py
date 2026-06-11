@@ -1,21 +1,16 @@
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import streamlit as st
 
-SRC_DIR = Path(__file__).resolve().parent / "src"
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
-
-from app_state import (
+from coffee_recommender.app_state import (
     build_scoring_features,
     initialise_review_state,
     reset_review_history,
     reset_review_history_if_data_paths_changed,
 )
-from coffee_service import (
+from coffee_recommender.coffee_service import (
     build_coffee_options,
     get_cached_url_selection,
     load_catalogue,
@@ -25,7 +20,7 @@ from coffee_service import (
     selection_from_url_reviewed_coffee,
     submit_review,
 )
-from visualize_landscape import build_projected_score_landscape_figure
+from coffee_recommender.visualize_landscape import build_projected_score_landscape_figure
 
 
 st.set_page_config(page_title="Coffee Recommender", page_icon="☕", layout="wide")
@@ -53,7 +48,10 @@ if missing_paths:
     for path in missing_paths:
         st.error(f"Missing required file: {path}")
     if embeddings_path in missing_paths:
-        st.info("Generate embeddings with: .venv/bin/python src/process_data/build_embeddings.py")
+        st.info(
+            "Generate embeddings with: .venv/bin/python -m "
+            "coffee_recommender.process_data.build_embeddings"
+        )
     st.stop()
 
 catalogue = load_catalogue(coffees_path, sensory_path, embeddings_path)

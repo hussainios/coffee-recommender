@@ -1,16 +1,11 @@
 from __future__ import annotations
 
 import json
-import sys
-from pathlib import Path
 from typing import Any
 
-SRC_DIR = Path(__file__).resolve().parent
-if str(SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(SRC_DIR))
-
-from landscape import CoffeeFeatures, ReviewEvent, SENSORY_DIMENSIONS
-import openai_client
+from . import openai_client
+from .coffee_dimensions import SENSORY_DIMENSIONS
+from .landscape import CoffeeFeatures, ReviewEvent
 
 
 REVIEW_EVENT_JSON_SCHEMA: dict[str, Any] = {

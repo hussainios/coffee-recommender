@@ -1,34 +1,24 @@
 from __future__ import annotations
 
-import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import pandas as pd
 
-
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
-SRC = ROOT / "src"
-if str(SRC) not in sys.path:
-    sys.path.insert(0, str(SRC))
-
-import coffee_service  # noqa: E402
-from app_state import append_review_event, build_scoring_features, reset_review_history  # noqa: E402
-from coffee_service import (  # noqa: E402
+from coffee_recommender import coffee_service
+from coffee_recommender.app_state import append_review_event, build_scoring_features, reset_review_history
+from coffee_recommender.coffee_service import (
     build_coffee_options,
     get_cached_url_selection,
     load_catalogue,
     select_catalogue_reviewed_coffee,
     submit_review,
 )
-from landscape import CoffeeFeatures, recommend_from_landscape  # noqa: E402
-from reviewed_coffee_url import ReviewedCoffeeFromUrl  # noqa: E402
-from schemas import CoffeeRecord, Process, SensoryVector  # noqa: E402
-from unittest.mock import patch
+from coffee_recommender.landscape import CoffeeFeatures, recommend_from_landscape
+from coffee_recommender.reviewed_coffee_url import ReviewedCoffeeFromUrl
+from coffee_recommender.schemas import CoffeeRecord, Process, SensoryVector
 
 
 def _coffee_row(coffee_id: str, name: str, process: str = "washed") -> dict[str, str]:
