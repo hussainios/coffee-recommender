@@ -2,20 +2,13 @@ from __future__ import annotations
 
 import math
 import json
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 import pandas as pd
 
-
-ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / "src"
-if str(SRC) not in sys.path:
-    sys.path.insert(0, str(SRC))
-
-from landscape import (  # noqa: E402
+from coffee_recommender.landscape import (
     DistanceWeights,
     build_feature_index,
     estimate_temperature,

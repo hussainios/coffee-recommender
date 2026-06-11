@@ -1,27 +1,16 @@
 from __future__ import annotations
 
-import sys
 import unittest
-from pathlib import Path
 from types import SimpleNamespace
 
-
-ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
-
-SRC = ROOT / "src"
-if str(SRC) not in sys.path:
-    sys.path.insert(0, str(SRC))
-
-from app_state import (  # noqa: E402
+from coffee_recommender.app_state import (
     append_review_event,
     build_scoring_features,
     initialise_review_state,
     reset_review_history,
     reset_review_history_if_data_paths_changed,
 )
-from landscape import CoffeeFeatures, ReviewEvent  # noqa: E402
+from coffee_recommender.landscape import CoffeeFeatures, ReviewEvent
 
 
 def _coffee(coffee_id: str) -> CoffeeFeatures:

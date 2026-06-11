@@ -6,10 +6,10 @@ from typing import Any
 
 import pandas as pd
 
-from app_state import append_review_event, build_scoring_features
-from landscape import CoffeeFeatures, ReviewEvent, load_feature_index, recommend_from_landscape
-from parse_review import parse_review_event
-from reviewed_coffee_url import ReviewedCoffeeFromUrl, normalise_source_url, prepare_reviewed_coffee_from_url
+from .app_state import append_review_event, build_scoring_features
+from .landscape import CoffeeFeatures, ReviewEvent, load_feature_index, recommend_from_landscape
+from .parse_review import parse_review_event
+from .reviewed_coffee_url import ReviewedCoffeeFromUrl, normalise_source_url, prepare_reviewed_coffee_from_url
 
 
 @dataclass(frozen=True)

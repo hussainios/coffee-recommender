@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from landscape import CoffeeFeatures, ReviewEvent
+from .landscape import CoffeeFeatures, ReviewEvent
 
 
 DEFAULT_INPUT_MODE = "Catalogue coffee"

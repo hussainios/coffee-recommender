@@ -8,18 +8,8 @@ from typing import Any, Literal, TypedDict
 
 import pandas as pd
 
-from profile import PROFILE_DIMENSIONS
-from schemas import CoffeeRecord, SensoryVector
-
-
-SENSORY_DIMENSIONS: tuple[str, ...] = (*PROFILE_DIMENSIONS, "clean_cup")
-PROCESS_DIMENSIONS: tuple[str, ...] = (
-    "process_washed",
-    "process_natural",
-    "process_honey",
-    "process_anaerobic",
-    "process_cofermented",
-)
+from .coffee_dimensions import PROCESS_DIMENSIONS, SENSORY_DIMENSIONS
+from .schemas import CoffeeRecord, SensoryVector
 
 
 ChangeDirection = Literal["higher", "lower"]

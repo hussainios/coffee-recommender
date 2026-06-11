@@ -97,13 +97,13 @@ OPENAI_API_KEY=your_api_key_here
 Build the processed catalogue:
 
 ```bash
-python src/process_data/build_dataset.py
+.venv/bin/python -m coffee_recommender.process_data.build_dataset
 ```
 
 Refresh embeddings only:
 
 ```bash
-python src/process_data/build_embeddings.py
+.venv/bin/python -m coffee_recommender.process_data.build_embeddings
 ```
 
 Generated files:
@@ -117,7 +117,7 @@ data/processed/coffee_embeddings.csv
 ## Tests
 
 ```bash
-pytest
+.venv/bin/python -m pytest
 ```
 
 Tests cover review parsing, landscape scoring, URL-reviewed coffees, multi-review state helpers, and data parsing.

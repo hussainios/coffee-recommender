@@ -1,28 +1,14 @@
 from __future__ import annotations
 
 import json
-import sys
 import unittest
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-
-ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / "src"
-PROCESS_DATA = SRC / "process_data"
-
-for path in (SRC, PROCESS_DATA):
-    path_str = str(path)
-    if path_str not in sys.path:
-        sys.path.insert(0, path_str)
-
-import parse_review  # noqa: E402
-import openai_client  # noqa: E402
-from landscape import CoffeeFeatures  # noqa: E402
-import extract_sensory  # noqa: E402
-import embed_coffee  # noqa: E402
-from schemas import CoffeeRecord, Process, RoastLevel  # noqa: E402
+from coffee_recommender import openai_client, parse_review
+from coffee_recommender.landscape import CoffeeFeatures
+from coffee_recommender.process_data import embed_coffee, extract_sensory
+from coffee_recommender.schemas import CoffeeRecord, Process, RoastLevel
 
 
 class _Responses:

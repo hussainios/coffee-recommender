@@ -1,24 +1,15 @@
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
 
 import pandas as pd
 from tqdm import tqdm
 
-SRC_DIR = Path(__file__).resolve().parents[1]
-PROCESS_DATA_DIR = Path(__file__).resolve().parent
-
-for path in (SRC_DIR, PROCESS_DATA_DIR):
-    path_str = str(path)
-    if path_str not in sys.path:
-        sys.path.insert(0, path_str)
-
-from process_data.parse_metadata import parse_metadata
-from process_data.extract_sensory import extract_sensory_vector_llm
-from process_data.embed_coffee import build_embedding_records
-from openai_client import DEFAULT_CHAT_MODEL, DEFAULT_EMBEDDING_MODEL
+from ..openai_client import DEFAULT_CHAT_MODEL, DEFAULT_EMBEDDING_MODEL
+from .embed_coffee import build_embedding_records
+from .extract_sensory import extract_sensory_vector_llm
+from .parse_metadata import parse_metadata
 
 
 def main(raw_dir: Path, output_dir: Path, sensory_model: str, embedding_model: str) -> None:

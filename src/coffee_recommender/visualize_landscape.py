@@ -7,12 +7,11 @@ import plotly.graph_objects as go
 from scipy.interpolate import griddata
 from sklearn.decomposition import PCA
 
-from landscape import (
+from .coffee_dimensions import PROCESS_DIMENSIONS, SENSORY_DIMENSIONS
+from .landscape import (
     CoffeeFeatures,
     LandscapeConfig,
-    PROCESS_DIMENSIONS,
     ReviewEvent,
-    SENSORY_DIMENSIONS,
     estimate_temperature,
     score_candidate,
 )

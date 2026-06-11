@@ -1,35 +1,11 @@
 from __future__ import annotations
 
 import json
-import sys
 from typing import Any
 
-from pathlib import Path
-
-SRC_DIR = Path(__file__).resolve().parents[1]
-PROCESS_DATA_DIR = Path(__file__).resolve().parent
-
-for path in (SRC_DIR, PROCESS_DATA_DIR):
-    path_str = str(path)
-    if path_str not in sys.path:
-        sys.path.insert(0, path_str)
-
-import openai_client
-from schemas import CoffeeRecord, SensoryVector
-
-SENSORY_DIMENSIONS: tuple[str, ...] = (
-    "acidity",
-    "sweetness",
-    "body",
-    "bitterness",
-    "fruitiness",
-    "chocolate_nutty",
-    "floral",
-    "funky_fermented",
-    "roasty",
-    "clean_cup",
-)
-
+from .. import openai_client
+from ..coffee_dimensions import SENSORY_DIMENSIONS
+from ..schemas import CoffeeRecord, SensoryVector
 
 SENSORY_JSON_SCHEMA: dict[str, Any] = {
     "type": "object",

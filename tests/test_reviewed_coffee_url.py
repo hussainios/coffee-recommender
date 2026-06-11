@@ -1,30 +1,20 @@
 from __future__ import annotations
 
-import sys
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-
-ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / "src"
-PROCESS_DATA = SRC / "process_data"
-
-for path in (SRC, PROCESS_DATA):
-    path_str = str(path)
-    if path_str not in sys.path:
-        sys.path.insert(0, path_str)
-
-import reviewed_coffee_url  # noqa: E402
-import openai_client  # noqa: E402
-from reviewed_coffee_url import (  # noqa: E402
+from coffee_recommender import openai_client, reviewed_coffee_url
+from coffee_recommender.landscape import CoffeeFeatures, recommend_from_landscape
+from coffee_recommender.process_data.embed_coffee import build_embedding_text_from_record
+from coffee_recommender.reviewed_coffee_url import (
     extract_product_text_from_html,
     fetch_url_html,
     prepare_reviewed_coffee_from_url,
 )
-from schemas import Process, SensoryVector  # noqa: E402
-from landscape import CoffeeFeatures, recommend_from_landscape  # noqa: E402
-from process_data.embed_coffee import build_embedding_text_from_record  # noqa: E402
+from coffee_recommender.schemas import Process, SensoryVector
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 class ReviewedCoffeeUrlTests(unittest.TestCase):

@@ -2,22 +2,13 @@ from __future__ import annotations
 
 import json
 import os
-import sys
 import unittest
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-
-ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / "src"
-if str(SRC) not in sys.path:
-    sys.path.insert(0, str(SRC))
-
-import parse_review  # noqa: E402
-import openai_client  # noqa: E402
-from landscape import CoffeeFeatures, recommend_from_landscape  # noqa: E402
-from parse_review import parse_review_event  # noqa: E402
+from coffee_recommender import openai_client, parse_review
+from coffee_recommender.landscape import CoffeeFeatures, recommend_from_landscape
+from coffee_recommender.parse_review import parse_review_event
 
 
 class _Responses:

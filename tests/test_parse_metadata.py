@@ -1,17 +1,9 @@
 from __future__ import annotations
 
-import sys
 import unittest
 from pathlib import Path
 
-
-ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / "src"
-
-if str(SRC) not in sys.path:
-    sys.path.insert(0, str(SRC))
-
-from process_data.parse_metadata import (  # noqa: E402
+from coffee_recommender.process_data.parse_metadata import (
     parse_brew_methods,
     parse_metadata_text,
     parse_metadata,
@@ -21,7 +13,7 @@ from process_data.parse_metadata import (  # noqa: E402
     parse_tasting_notes,
     parse_weight_g,
 )
-from schemas import BrewMethod, Process  # noqa: E402
+from coffee_recommender.schemas import BrewMethod, Process
 
 
 class ParseMetadataTests(unittest.TestCase):
