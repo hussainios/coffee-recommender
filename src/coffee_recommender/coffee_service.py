@@ -128,7 +128,7 @@ def submit_review(
     reviewed_coffee: CoffeeFeatures | None,
     catalogue_features: dict[str, CoffeeFeatures],
     top_k: int,
-    is_temporary: bool,
+    is_external_url: bool,
 ) -> ReviewSubmissionResult:
     if reviewed_coffee is None:
         raise ValueError("Select or process a reviewed coffee before running the recommender.")
@@ -138,7 +138,7 @@ def submit_review(
         review_session,
         event,
         coffee_features_to_payload(reviewed_coffee),
-        is_temporary=is_temporary,
+        is_external_url=is_external_url,
         recommendations=[],
     )
     scoring_features = build_scoring_features(

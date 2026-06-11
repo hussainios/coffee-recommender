@@ -60,7 +60,7 @@ class ReviewHistoryHelperTests(unittest.TestCase):
             session,
             event,
             _coffee("catalogue"),
-            is_temporary=False,
+            is_external_url=False,
             recommendations=recommendations,
         )
 
@@ -78,7 +78,7 @@ class ReviewHistoryHelperTests(unittest.TestCase):
             session,
             event,
             coffee,
-            is_temporary=True,
+            is_external_url=True,
             recommendations=[],
         )
 
@@ -92,7 +92,7 @@ class ReviewHistoryHelperTests(unittest.TestCase):
             state.review_session,
             ReviewEventPayload(coffee_id="a", overall=1.0),
             _coffee("a"),
-            is_temporary=True,
+            is_external_url=True,
             recommendations=[RecommendationPayload(coffee_id="b", name="B", score=0.5, temperature=0.2)],
         )
 

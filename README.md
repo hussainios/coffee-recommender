@@ -48,10 +48,12 @@ COFFEE_RECOMMENDER_EMBEDDINGS_PATH=...
 
 - `GET /health`
 - `GET /catalogue/coffees`
-- `GET /catalogue/coffees/{coffee_id}`
-- `POST /reviewed-coffee/url`
+- `GET /review-session`
+- `DELETE /review-session`
+- `GET /review-session/landscape`
+- `GET /reviewed-coffees/catalogue/{coffee_id}`
+- `POST /reviewed-coffees/from-url`
 - `POST /reviews/submit`
-- `POST /landscape`
 
 ## Checks
 

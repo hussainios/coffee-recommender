@@ -3,8 +3,8 @@ from __future__ import annotations
 import plotly.graph_objects as go
 import streamlit as st
 
-from coffee_recommender.api_models import LandscapeRequest, SubmitReviewRequest
-from coffee_recommender.app_state import initialise_review_state, reset_review_history
+from coffee_recommender.api_models import SubmitReviewRequest
+from coffee_recommender.app_state import initialise_review_state
 from coffee_recommender.config import get_api_base_url
 from coffee_recommender.streamlit_api_client import ApiClientError, StreamlitApiClient
 
@@ -22,10 +22,15 @@ with st.sidebar:
     st.caption(f"API: `{get_api_base_url()}`")
     top_k = st.slider("Top K", min_value=1, max_value=10, value=5)
     if st.button("Clear review history"):
-        reset_review_history(st.session_state)
+        try:
+            st.session_state.review_session = client.clear_review_session()
+        except ApiClientError as exc:
+            st.error(str(exc))
+            st.stop()
 
 try:
     coffee_summaries = client.list_catalogue_coffees()
+    st.session_state.review_session = client.get_review_session()
 except ApiClientError as exc:
     st.error(str(exc))
     st.stop()
@@ -50,7 +55,7 @@ url_value = st.session_state.url_reviewed_source
 if input_mode == "Catalogue coffee":
     selected_label = st.selectbox("Reviewed coffee", options=list(coffee_options))
     try:
-        selected_reviewed = client.get_catalogue_coffee(coffee_options[selected_label])
+        selected_reviewed = client.get_catalogue_reviewed_coffee(coffee_options[selected_label])
     except ApiClientError as exc:
         st.error(str(exc))
         st.stop()
@@ -64,9 +69,9 @@ else:
 
     if process_url:
         try:
-            processed = client.process_reviewed_coffee_url(url_value)
-            st.session_state.url_reviewed_coffee = processed.reviewed_coffee
-            st.session_state.url_reviewed_source = processed.normalized_url
+            reviewed_details = client.get_reviewed_coffee_from_url(url_value)
+            st.session_state.url_reviewed_coffee = reviewed_details
+            st.session_state.url_reviewed_source = reviewed_details.normalized_url or url_value
         except ApiClientError as exc:
             st.error(str(exc))
 
@@ -92,9 +97,9 @@ if st.button("Add review and recommend", type="primary"):
             if not url_value:
                 raise ValueError("Paste a coffee product URL before running the recommender.")
             if st.session_state.url_reviewed_coffee is None or url_value != st.session_state.url_reviewed_source:
-                processed = client.process_reviewed_coffee_url(url_value)
-                st.session_state.url_reviewed_coffee = processed.reviewed_coffee
-                st.session_state.url_reviewed_source = processed.normalized_url
+                reviewed_details = client.get_reviewed_coffee_from_url(url_value)
+                st.session_state.url_reviewed_coffee = reviewed_details
+                st.session_state.url_reviewed_source = reviewed_details.normalized_url or url_value
             selected_reviewed = st.session_state.url_reviewed_coffee
 
         if selected_reviewed is None:
@@ -105,7 +110,6 @@ if st.button("Add review and recommend", type="primary"):
                 review_text=review,
                 reviewed_coffee=selected_reviewed,
                 top_k=top_k,
-                review_session=st.session_state.review_session,
             )
         )
     except (ApiClientError, ValueError) as exc:
@@ -195,12 +199,7 @@ if not st.session_state.review_session.review_events:
     st.info("Add at least one review to plot the score landscape.")
 else:
     try:
-        landscape = client.build_landscape(
-            LandscapeRequest(
-                review_session=st.session_state.review_session,
-                show_surface=show_landscape_surface,
-            )
-        )
+        landscape = client.build_landscape(show_surface=show_landscape_surface)
     except ApiClientError as exc:
         st.error(str(exc))
         st.stop()

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Literal
 from typing import Any
 from typing import cast
 
@@ -53,41 +54,30 @@ class ReviewSessionPayload(BaseModel):
 class CatalogueCoffeeSummary(BaseModel):
     coffee_id: str
     name: str | None = None
-    metadata: dict[str, Any] | None = None
 
 
-class ReviewedCoffeePayload(BaseModel):
+class ReviewedCoffeeDetails(BaseModel):
     features: CoffeeFeaturesPayload
     metadata: dict[str, Any] | None = None
     sensory: dict[str, Any] | None = None
-    is_temporary: bool
+    source_type: Literal["catalogue", "external_url"]
+    normalized_url: str | None = None
 
 
 class ProcessUrlRequest(BaseModel):
     url: str
 
 
-class ProcessUrlResponse(BaseModel):
-    normalized_url: str
-    reviewed_coffee: ReviewedCoffeePayload
-
-
 class SubmitReviewRequest(BaseModel):
     review_text: str
-    reviewed_coffee: ReviewedCoffeePayload
+    reviewed_coffee: ReviewedCoffeeDetails
     top_k: int = Field(default=5, ge=1, le=10)
-    review_session: ReviewSessionPayload = Field(default_factory=ReviewSessionPayload)
 
 
 class SubmitReviewResponse(BaseModel):
     event: ReviewEventPayload
     review_session: ReviewSessionPayload
     recommendations: list[RecommendationPayload]
-
-
-class LandscapeRequest(BaseModel):
-    review_session: ReviewSessionPayload = Field(default_factory=ReviewSessionPayload)
-    show_surface: bool = True
 
 
 class LandscapeResponse(BaseModel):

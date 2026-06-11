@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from fastapi import FastAPI, HTTPException
+from fastapi import Query
 
-from .api_models import LandscapeRequest, ProcessUrlRequest, SubmitReviewRequest
+from .api_models import ProcessUrlRequest, SubmitReviewRequest
 from .application import ApplicationService, create_application_service
 
 
@@ -33,17 +34,31 @@ def create_app(service: ApplicationService | None = None) -> FastAPI:
         except Exception as exc:  # pragma: no cover - exercised via tests
             raise _translate_exception(exc) from exc
 
-    @app.get("/catalogue/coffees/{coffee_id}")
-    def get_catalogue_coffee(coffee_id: str):
+    @app.get("/review-session")
+    def get_review_session():
         try:
-            return application_service.get_catalogue_coffee(coffee_id)
+            return application_service.get_review_session()
         except Exception as exc:  # pragma: no cover - exercised via tests
             raise _translate_exception(exc) from exc
 
-    @app.post("/reviewed-coffee/url")
-    def process_reviewed_coffee_url(request: ProcessUrlRequest):
+    @app.delete("/review-session")
+    def clear_review_session():
         try:
-            return application_service.process_url(request.url)
+            return application_service.clear_review_session()
+        except Exception as exc:  # pragma: no cover - exercised via tests
+            raise _translate_exception(exc) from exc
+
+    @app.get("/reviewed-coffees/catalogue/{coffee_id}")
+    def get_catalogue_reviewed_coffee(coffee_id: str):
+        try:
+            return application_service.get_catalogue_reviewed_coffee(coffee_id)
+        except Exception as exc:  # pragma: no cover - exercised via tests
+            raise _translate_exception(exc) from exc
+
+    @app.post("/reviewed-coffees/from-url")
+    def get_reviewed_coffee_from_url(request: ProcessUrlRequest):
+        try:
+            return application_service.get_reviewed_coffee_from_url(request.url)
         except Exception as exc:  # pragma: no cover - exercised via tests
             raise _translate_exception(exc) from exc
 
@@ -54,10 +69,10 @@ def create_app(service: ApplicationService | None = None) -> FastAPI:
         except Exception as exc:  # pragma: no cover - exercised via tests
             raise _translate_exception(exc) from exc
 
-    @app.post("/landscape")
-    def build_landscape(request: LandscapeRequest):
+    @app.get("/review-session/landscape")
+    def build_landscape(show_surface: bool = Query(default=True)):
         try:
-            return application_service.build_landscape(request)
+            return application_service.build_landscape(show_surface=show_surface)
         except Exception as exc:  # pragma: no cover - exercised via tests
             raise _translate_exception(exc) from exc
 
