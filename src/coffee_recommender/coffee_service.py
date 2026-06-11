@@ -6,9 +6,20 @@ from typing import Any
 
 import pandas as pd
 
-from .app_state import append_review_event, build_scoring_features
-from .landscape import CoffeeFeatures, ReviewEvent, load_feature_index, recommend_from_landscape
+from .api_models import (
+    CoffeeFeaturesPayload,
+    RecommendationPayload,
+    ReviewEventPayload,
+    ReviewSessionPayload,
+    coffee_features_to_payload,
+    payload_to_coffee_features,
+    payload_to_review_event,
+    recommendation_to_payload,
+    review_event_to_payload,
+)
+from .landscape import CoffeeFeatures, load_feature_index, recommend_from_landscape
 from .parse_review import parse_review_event
+from .review_session import append_review_to_session
 from .reviewed_coffee_url import ReviewedCoffeeFromUrl, normalise_source_url, prepare_reviewed_coffee_from_url
 
 
@@ -29,8 +40,9 @@ class ReviewedCoffeeSelection:
 
 @dataclass(frozen=True)
 class ReviewSubmissionResult:
-    event: ReviewEvent
-    recommendations: list[dict[str, Any]]
+    event: ReviewEventPayload
+    recommendations: list[RecommendationPayload]
+    review_session: ReviewSessionPayload
     scoring_features: dict[str, CoffeeFeatures]
 
 
@@ -111,7 +123,7 @@ def prepare_url_selection(url_value: str) -> ReviewedCoffeeFromUrl:
 
 def submit_review(
     *,
-    session_state: Any,
+    review_session: ReviewSessionPayload,
     review_text: str,
     reviewed_coffee: CoffeeFeatures | None,
     catalogue_features: dict[str, CoffeeFeatures],
@@ -121,20 +133,47 @@ def submit_review(
     if reviewed_coffee is None:
         raise ValueError("Select or process a reviewed coffee before running the recommender.")
 
-    event = parse_review_event(review_text, reviewed_coffee)
-    append_review_event(
-        session_state,
+    event = review_event_to_payload(parse_review_event(review_text, reviewed_coffee))
+    pending_session = append_review_to_session(
+        review_session,
         event,
-        reviewed_coffee,
+        coffee_features_to_payload(reviewed_coffee),
         is_temporary=is_temporary,
+        recommendations=[],
     )
     scoring_features = build_scoring_features(
         catalogue_features,
-        session_state.reviewed_feature_overrides,
+        {
+            coffee_id: payload_to_coffee_features(payload)
+            for coffee_id, payload in pending_session.reviewed_feature_overrides.items()
+        },
     )
-    recommendations = recommend_from_landscape(scoring_features, session_state.review_events, top_k=top_k)
+    recommendations = [
+        recommendation_to_payload(item)
+        for item in recommend_from_landscape(
+            scoring_features,
+            [payload_to_review_event(review) for review in pending_session.review_events],
+            top_k=top_k,
+        )
+    ]
+    current_session = ReviewSessionPayload(
+        review_events=pending_session.review_events,
+        reviewed_feature_overrides=pending_session.reviewed_feature_overrides,
+        last_event=event,
+        last_recommendations=recommendations,
+    )
     return ReviewSubmissionResult(
         event=event,
         recommendations=recommendations,
+        review_session=current_session,
         scoring_features=scoring_features,
     )
+
+
+def build_scoring_features(
+    features: dict[str, CoffeeFeatures],
+    reviewed_feature_overrides: dict[str, CoffeeFeatures],
+) -> dict[str, CoffeeFeatures]:
+    scoring_features = dict(features)
+    scoring_features.update(reviewed_feature_overrides)
+    return scoring_features
