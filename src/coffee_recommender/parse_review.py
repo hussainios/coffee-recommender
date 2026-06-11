@@ -5,7 +5,7 @@ from typing import Any
 
 from . import openai_client
 from .coffee_dimensions import SENSORY_DIMENSIONS
-from .landscape import CoffeeFeatures, ReviewEvent
+from .landscape import AttributeOpinion, ChangeRequest, CoffeeFeatures, ReviewEvent
 
 
 REVIEW_EVENT_JSON_SCHEMA: dict[str, Any] = {
@@ -61,8 +61,8 @@ Reviewed coffee:
 
 
 def _to_review_event(parsed: dict[str, Any], reviewed_coffee: CoffeeFeatures) -> ReviewEvent:
-    change_requests: dict[str, dict[str, float | str]] = {}
-    attribute_opinions: dict[str, dict[str, float | str]] = {}
+    change_requests: dict[str, ChangeRequest] = {}
+    attribute_opinions: dict[str, AttributeOpinion] = {}
 
     for change_request in parsed.get("change_requests", []):
         attribute = str(change_request.get("attribute", ""))
@@ -72,10 +72,11 @@ def _to_review_event(parsed: dict[str, Any], reviewed_coffee: CoffeeFeatures) ->
         if attribute not in SENSORY_DIMENSIONS or direction not in ("higher", "lower") or strength == 0.0:
             continue
 
-        change_requests[attribute] = {
+        change_request_payload: ChangeRequest = {
             "direction": direction,
             "strength": strength,
         }
+        change_requests[attribute] = change_request_payload
 
     for opinion in parsed.get("attribute_opinions", []):
         attribute = str(opinion.get("attribute", ""))
@@ -85,10 +86,11 @@ def _to_review_event(parsed: dict[str, Any], reviewed_coffee: CoffeeFeatures) ->
         if attribute not in SENSORY_DIMENSIONS or sentiment not in ("liked", "disliked") or strength == 0.0:
             continue
 
-        attribute_opinions[attribute] = {
+        attribute_opinion_payload: AttributeOpinion = {
             "sentiment": sentiment,
             "strength": strength,
         }
+        attribute_opinions[attribute] = attribute_opinion_payload
 
     return {
         "coffee_id": reviewed_coffee.coffee_id,
