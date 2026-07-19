@@ -34,6 +34,10 @@ class AppSettings(BaseSettings):
         default=None,
         alias="COFFEE_RECOMMENDER_CORS_ORIGINS",
     )
+    default_user_email: str = Field(
+        default="local@coffee-recommender.app",
+        alias="COFFEE_RECOMMENDER_DEFAULT_USER_EMAIL",
+    )
 
 
 def get_app_settings() -> AppSettings:
@@ -79,3 +83,11 @@ def get_database_url() -> str:
             "COFFEE_RECOMMENDER_DATABASE_URL is required for database-backed workflows."
         )
     return settings.database_url
+
+
+def get_optional_database_url() -> str | None:
+    return get_app_settings().database_url
+
+
+def get_default_user_email() -> str:
+    return get_app_settings().default_user_email

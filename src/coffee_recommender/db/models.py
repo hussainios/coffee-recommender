@@ -41,7 +41,7 @@ class UserModel(Base):
 class CatalogueCoffeeModel(Base):
     __tablename__ = "catalogue_coffees"
 
-    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     roaster: Mapped[str | None] = mapped_column(String(255))
     origin_country: Mapped[str | None] = mapped_column(String(255))
@@ -81,7 +81,12 @@ class CoffeeSourceModel(Base):
     __tablename__ = "coffee_sources"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    coffee_id: Mapped[str] = mapped_column(ForeignKey("catalogue_coffees.id"), nullable=False, index=True)
+    coffee_id: Mapped[str] = mapped_column(
+        String(128),
+        ForeignKey("catalogue_coffees.id"),
+        nullable=False,
+        index=True,
+    )
     source_type: Mapped[str] = mapped_column(String(64), nullable=False)
     source_url: Mapped[str | None] = mapped_column(Text)
     raw_text: Mapped[str] = mapped_column(Text, nullable=False)
@@ -104,7 +109,12 @@ class SensoryProfileModel(Base):
     __tablename__ = "sensory_profiles"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    coffee_id: Mapped[str] = mapped_column(ForeignKey("catalogue_coffees.id"), nullable=False, index=True)
+    coffee_id: Mapped[str] = mapped_column(
+        String(128),
+        ForeignKey("catalogue_coffees.id"),
+        nullable=False,
+        index=True,
+    )
     profile_version: Mapped[str] = mapped_column(String(64), nullable=False)
     acidity: Mapped[Decimal] = mapped_column(Numeric(3, 2), nullable=False)
     sweetness: Mapped[Decimal] = mapped_column(Numeric(3, 2), nullable=False)
@@ -132,7 +142,12 @@ class EmbeddingModel(Base):
     __tablename__ = "embeddings"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    coffee_id: Mapped[str] = mapped_column(ForeignKey("catalogue_coffees.id"), nullable=False, index=True)
+    coffee_id: Mapped[str] = mapped_column(
+        String(128),
+        ForeignKey("catalogue_coffees.id"),
+        nullable=False,
+        index=True,
+    )
     embedding_model: Mapped[str] = mapped_column(String(128), nullable=False)
     vector_json: Mapped[FloatList] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -149,7 +164,12 @@ class ReviewEventModel(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
-    coffee_id: Mapped[str] = mapped_column(ForeignKey("catalogue_coffees.id"), nullable=False, index=True)
+    coffee_id: Mapped[str] = mapped_column(
+        String(128),
+        ForeignKey("catalogue_coffees.id"),
+        nullable=False,
+        index=True,
+    )
     review_text: Mapped[str] = mapped_column(Text, nullable=False)
     overall_score: Mapped[Decimal | None] = mapped_column(Numeric(4, 2))
     parsed_review_json: Mapped[JsonDict] = mapped_column(JSONB, default=dict, nullable=False)
@@ -198,7 +218,12 @@ class RecommendationItemModel(Base):
         nullable=False,
         index=True,
     )
-    coffee_id: Mapped[str] = mapped_column(ForeignKey("catalogue_coffees.id"), nullable=False, index=True)
+    coffee_id: Mapped[str] = mapped_column(
+        String(128),
+        ForeignKey("catalogue_coffees.id"),
+        nullable=False,
+        index=True,
+    )
     rank: Mapped[int] = mapped_column(Integer, nullable=False)
     score: Mapped[Decimal] = mapped_column(Numeric(6, 4), nullable=False)
     debug_json: Mapped[JsonDict] = mapped_column(JSONB, default=dict, nullable=False)

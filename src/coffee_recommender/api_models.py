@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Literal
 from typing import Any
 from typing import cast
+from datetime import datetime
 
 from pydantic import BaseModel, Field
 
@@ -68,6 +69,22 @@ class ReviewedCoffeeDetails(BaseModel):
     sensory: dict[str, Any] | None = None
     source_type: Literal["catalogue", "external_url"]
     normalized_url: str | None = None
+
+
+class ReviewHistoryItemPayload(BaseModel):
+    review_id: int
+    coffee_id: str
+    review_text: str
+    overall: float = 0.0
+    created_at: datetime
+
+
+class RecommendationRunPayload(BaseModel):
+    run_id: int
+    seed_review_event_id: int | None = None
+    algorithm_version: str
+    created_at: datetime
+    recommendations: list[RecommendationPayload] = Field(default_factory=list)
 
 
 class ProcessUrlRequest(BaseModel):

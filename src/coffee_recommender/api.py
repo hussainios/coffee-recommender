@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .api_models import ProcessUrlRequest, SubmitReviewRequest
 from .application import ApplicationService, create_application_service
 from .config import get_cors_origins
+from .db import get_database_health
 
 
 def _translate_exception(exc: Exception) -> HTTPException:
@@ -33,11 +34,21 @@ def create_app(service: ApplicationService | None = None) -> FastAPI:
     )
 
     @app.get("/health")
-    def health() -> dict[str, str]:
-        return {"status": "ok"}
+    def health() -> dict[str, object]:
+        return {
+            "status": "ok",
+            "database": get_database_health(),
+        }
 
     @app.get("/catalogue/coffees")
     def list_catalogue_coffees():
+        try:
+            return application_service.list_catalogue_coffees()
+        except Exception as exc:  # pragma: no cover - exercised via tests
+            raise _translate_exception(exc) from exc
+
+    @app.get("/coffees")
+    def list_coffees():
         try:
             return application_service.list_catalogue_coffees()
         except Exception as exc:  # pragma: no cover - exercised via tests
@@ -64,6 +75,13 @@ def create_app(service: ApplicationService | None = None) -> FastAPI:
         except Exception as exc:  # pragma: no cover - exercised via tests
             raise _translate_exception(exc) from exc
 
+    @app.get("/coffees/{coffee_id}")
+    def get_coffee_details(coffee_id: str):
+        try:
+            return application_service.get_catalogue_reviewed_coffee(coffee_id)
+        except Exception as exc:  # pragma: no cover - exercised via tests
+            raise _translate_exception(exc) from exc
+
     @app.post("/reviewed-coffees/from-url")
     def get_reviewed_coffee_from_url(request: ProcessUrlRequest):
         try:
@@ -75,6 +93,34 @@ def create_app(service: ApplicationService | None = None) -> FastAPI:
     def submit_review_route(request: SubmitReviewRequest):
         try:
             return application_service.submit_review(request)
+        except Exception as exc:  # pragma: no cover - exercised via tests
+            raise _translate_exception(exc) from exc
+
+    @app.post("/reviews")
+    def create_review(request: SubmitReviewRequest):
+        try:
+            return application_service.submit_review(request)
+        except Exception as exc:  # pragma: no cover - exercised via tests
+            raise _translate_exception(exc) from exc
+
+    @app.get("/reviews")
+    def list_reviews():
+        try:
+            return application_service.list_reviews()
+        except Exception as exc:  # pragma: no cover - exercised via tests
+            raise _translate_exception(exc) from exc
+
+    @app.get("/recommendations")
+    def list_recommendation_runs():
+        try:
+            return application_service.list_recommendation_runs()
+        except Exception as exc:  # pragma: no cover - exercised via tests
+            raise _translate_exception(exc) from exc
+
+    @app.get("/recommendations/{run_id}")
+    def get_recommendation_run(run_id: int):
+        try:
+            return application_service.get_recommendation_run(run_id)
         except Exception as exc:  # pragma: no cover - exercised via tests
             raise _translate_exception(exc) from exc
 

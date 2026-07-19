@@ -4,14 +4,17 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from datetime import datetime, UTC
 
 import pandas as pd
 from fastapi.testclient import TestClient
 
 from coffee_recommender.api import create_app
+from coffee_recommender.api_models import RecommendationRunPayload, ReviewHistoryItemPayload, ReviewSessionPayload
 from coffee_recommender.application import ApplicationService
 from coffee_recommender import application, coffee_service
 from coffee_recommender.config import DataPaths
+from coffee_recommender.db.review_history import ReviewHistoryStore
 
 
 def _coffee_row(coffee_id: str, name: str, process: str = "washed") -> dict[str, str]:
@@ -48,6 +51,66 @@ def _embedding_row(coffee_id: str, embedding: str) -> dict[str, str]:
         "coffee_id": coffee_id,
         "embedding": embedding,
     }
+
+
+class FakeApiReviewHistoryStore(ReviewHistoryStore):
+    def __init__(self) -> None:
+        self.session = ReviewSessionPayload()
+
+    def get_review_session(self) -> ReviewSessionPayload:
+        return self.session
+
+    def clear_review_session(self) -> ReviewSessionPayload:
+        self.session = ReviewSessionPayload()
+        return self.session
+
+    def persist_review_submission(
+        self,
+        *,
+        review_text: str,
+        reviewed_coffee,
+        event,
+        recommendations,
+        algorithm_version: str,
+    ) -> ReviewSessionPayload:
+        self.session = ReviewSessionPayload(
+            review_events=[event],
+            reviewed_feature_overrides={},
+            last_event=event,
+            last_recommendations=recommendations,
+        )
+        return self.session
+
+    def list_reviews(self) -> list[ReviewHistoryItemPayload]:
+        return [
+            ReviewHistoryItemPayload(
+                review_id=1,
+                coffee_id="reviewed",
+                review_text="Loved it.",
+                overall=1.0,
+                created_at=datetime.now(UTC),
+            )
+        ]
+
+    def list_recommendation_runs(self) -> list[RecommendationRunPayload]:
+        return [
+            RecommendationRunPayload(
+                run_id=1,
+                seed_review_event_id=1,
+                algorithm_version="landscape_v1",
+                created_at=datetime.now(UTC),
+                recommendations=[],
+            )
+        ]
+
+    def get_recommendation_run(self, run_id: int) -> RecommendationRunPayload:
+        return RecommendationRunPayload(
+            run_id=run_id,
+            seed_review_event_id=1,
+            algorithm_version="landscape_v1",
+            created_at=datetime.now(UTC),
+            recommendations=[],
+        )
 
 
 class ApiTests(unittest.TestCase):
@@ -93,6 +156,10 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(coffees.json()[0]["coffee_id"], "candidate")
             self.assertEqual(set(coffees.json()[0]), {"coffee_id", "name"})
 
+            coffees_alias = client.get("/coffees")
+            self.assertEqual(coffees_alias.status_code, 200)
+            self.assertEqual(coffees_alias.json()[0]["coffee_id"], "candidate")
+
             session = client.get("/review-session")
             self.assertEqual(session.status_code, 200)
             self.assertEqual(session.json()["review_events"], [])
@@ -100,6 +167,10 @@ class ApiTests(unittest.TestCase):
             reviewed = client.get("/reviewed-coffees/catalogue/reviewed")
             self.assertEqual(reviewed.status_code, 200)
             self.assertEqual(reviewed.json()["source_type"], "catalogue")
+
+            reviewed_alias = client.get("/coffees/reviewed")
+            self.assertEqual(reviewed_alias.status_code, 200)
+            self.assertEqual(reviewed_alias.json()["source_type"], "catalogue")
 
             with patch.object(
                 coffee_service,
@@ -136,6 +207,42 @@ class ApiTests(unittest.TestCase):
             cleared = client.delete("/review-session")
             self.assertEqual(cleared.status_code, 200)
             self.assertEqual(cleared.json()["review_events"], [])
+
+    def test_mobile_history_endpoints_return_persisted_data(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            coffees_path = Path(tmpdir) / "coffees.csv"
+            sensory_path = Path(tmpdir) / "coffee_sensory_vectors.csv"
+            embeddings_path = Path(tmpdir) / "coffee_embeddings.csv"
+
+            pd.DataFrame([_coffee_row("reviewed", "Reviewed Coffee", "washed")]).to_csv(
+                coffees_path, index=False
+            )
+            pd.DataFrame([_sensory_row("reviewed")]).to_csv(sensory_path, index=False)
+            pd.DataFrame([_embedding_row("reviewed", "[1.0, 0.0, 0.0]")]).to_csv(
+                embeddings_path, index=False
+            )
+
+            service = ApplicationService(
+                data_paths=DataPaths(
+                    coffees_path=coffees_path,
+                    sensory_path=sensory_path,
+                    embeddings_path=embeddings_path,
+                ),
+                _review_history_store=FakeApiReviewHistoryStore(),
+            )
+            client = TestClient(create_app(service))
+
+            reviews = client.get("/reviews")
+            self.assertEqual(reviews.status_code, 200)
+            self.assertEqual(reviews.json()[0]["coffee_id"], "reviewed")
+
+            recommendation_runs = client.get("/recommendations")
+            self.assertEqual(recommendation_runs.status_code, 200)
+            self.assertEqual(recommendation_runs.json()[0]["run_id"], 1)
+
+            recommendation_run = client.get("/recommendations/1")
+            self.assertEqual(recommendation_run.status_code, 200)
+            self.assertEqual(recommendation_run.json()["run_id"], 1)
 
     def test_url_endpoint_translates_value_errors(self) -> None:
         client = TestClient(create_app(ApplicationService(

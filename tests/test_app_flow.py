@@ -8,9 +8,11 @@ from unittest.mock import patch
 import pandas as pd
 
 from coffee_recommender import coffee_service
+from coffee_recommender.catalogue_store import CatalogueStore
 from coffee_recommender.api_models import SubmitReviewRequest
 from coffee_recommender.application import ApplicationService
 from coffee_recommender.coffee_service import (
+    CatalogueData,
     build_coffee_options,
     get_cached_url_selection,
     load_catalogue,
@@ -66,6 +68,16 @@ def _embedding_row(coffee_id: str, embedding: str) -> dict[str, str]:
         "coffee_id": coffee_id,
         "embedding": embedding,
     }
+
+
+class FakeCatalogueStore(CatalogueStore):
+    def __init__(self, catalogue: CatalogueData) -> None:
+        self.catalogue = catalogue
+        self.load_calls = 0
+
+    def load_catalogue(self) -> CatalogueData:
+        self.load_calls += 1
+        return self.catalogue
 
 
 class AppFlowTests(unittest.TestCase):
@@ -210,6 +222,61 @@ class AppFlowTests(unittest.TestCase):
 
             self.assertEqual(response.event.coffee_id, "reviewed")
             self.assertEqual(response.review_session.last_recommendations[0].coffee_id, "candidate")
+
+    def test_application_service_can_load_catalogue_from_store(self) -> None:
+        coffees = pd.DataFrame(
+            [
+                _coffee_row("a", "Alpha Coffee", "washed"),
+            ]
+        )
+        features = {
+            "a": CoffeeFeatures(
+                coffee_id="a",
+                name="Alpha Coffee",
+                sensory={
+                    "acidity": 0.5,
+                    "sweetness": 0.5,
+                    "body": 0.5,
+                    "bitterness": 0.1,
+                    "fruitiness": 0.5,
+                    "chocolate_nutty": 0.1,
+                    "floral": 0.1,
+                    "funky_fermented": 0.0,
+                    "roasty": 0.1,
+                    "clean_cup": 0.8,
+                },
+                process={
+                    "process_washed": 1.0,
+                    "process_natural": 0.0,
+                    "process_honey": 0.0,
+                    "process_anaerobic": 0.0,
+                    "process_cofermented": 0.0,
+                },
+                embedding=[1.0, 0.0, 0.0],
+            )
+        }
+        store = FakeCatalogueStore(
+            CatalogueData(
+                coffees=coffees,
+                features=features,
+                data_paths_key=("database", "database", "database"),
+            )
+        )
+
+        service = ApplicationService(
+            data_paths=DataPaths(
+                coffees_path=Path("unused.csv"),
+                sensory_path=Path("unused.csv"),
+                embeddings_path=Path("unused.csv"),
+            ),
+            _catalogue_store=store,
+        )
+
+        coffees_response = service.list_catalogue_coffees()
+
+        self.assertEqual(store.load_calls, 1)
+        self.assertEqual(coffees_response[0].coffee_id, "a")
+        self.assertEqual(coffees_response[0].name, "Alpha Coffee")
 
     def test_cached_url_selection_requires_matching_normalized_source(self) -> None:
         sensory = SensoryVector(
