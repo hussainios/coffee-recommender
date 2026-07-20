@@ -1,149 +1,150 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { startTransition, useEffect, useState } from "react";
 import {
   api,
   type CatalogueCoffeeSummary,
-  type LandscapeResponse,
+  type CoffeeDetailPayload,
   type RecommendationPayload,
   type ReviewedCoffeeDetails,
   type ReviewSessionPayload,
 } from "./lib/api";
 
-type InputMode = "catalogue" | "url";
+type Screen = "home" | "detail" | "review";
+type ReviewMood = "loved" | "liked" | "okay" | "nope";
 
-const LandscapePlot = lazy(() => import("./LandscapePlot"));
-
-const defaultReview =
-  "Silky and sweet, but I want a touch less acidity and a little more chocolate depth.";
-
-const processLabels: Record<string, string> = {
-  process_washed: "Washed",
-  process_natural: "Natural",
-  process_honey: "Honey",
-  process_anaerobic: "Anaerobic",
-  process_cofermented: "Co-fermented",
+type FeedbackChip = {
+  id: string;
+  label: string;
+  phrase: string;
 };
 
-function sentenceCase(key: string): string {
-  return key
-    .replace(/^process_/, "")
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+const feedbackChips: FeedbackChip[] = [
+  { id: "floral", label: "More floral", phrase: "I want something a little more floral." },
+  { id: "sweet", label: "Sweeter", phrase: "I want a sweeter cup." },
+  { id: "body", label: "More body", phrase: "I want a touch more body." },
+  { id: "less_acid", label: "Less acidic", phrase: "I want slightly lower acidity." },
+  { id: "cleaner", label: "Cleaner", phrase: "I want something cleaner and more transparent." },
+  { id: "less_funky", label: "Less funky", phrase: "I want less fermentation and funk." },
+];
+
+const moodCopy: Record<ReviewMood, { title: string; value: number; sentence: string }> = {
+  loved: {
+    title: "Loved it",
+    value: 1,
+    sentence: "I loved this coffee.",
+  },
+  liked: {
+    title: "Liked it",
+    value: 0.45,
+    sentence: "I liked this coffee overall.",
+  },
+  okay: {
+    title: "It was okay",
+    value: 0,
+    sentence: "This coffee was okay, but not a standout.",
+  },
+  nope: {
+    title: "Not for me",
+    value: -0.7,
+    sentence: "This coffee was not really for me.",
+  },
+};
+
+function formatPercent(score: number): string {
+  return `${Math.round(score * 100)}% match`;
 }
 
-function formatPercent(value: number): string {
-  return `${Math.round(value * 100)}%`;
-}
-
-function getTopSensoryNotes(sensory: Record<string, number>): string[] {
-  return Object.entries(sensory)
-    .sort(([, left], [, right]) => right - left)
-    .slice(0, 4)
-    .map(([key, value]) => `${sentenceCase(key)} ${formatPercent(value)}`);
-}
-
-function getPrimaryProcess(process: Record<string, number>): string {
-  const [primary] = Object.entries(process).sort(([, left], [, right]) => right - left);
-  if (!primary || primary[1] <= 0) {
-    return "Unknown";
-  }
-  return processLabels[primary[0]] || sentenceCase(primary[0]);
-}
-
-function formatProcessLabel(process: string | null): string | null {
+function formatProcess(process: string | null): string | null {
   if (!process) {
     return null;
   }
-  return sentenceCase(process);
+
+  return process
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
-function buildPlotlyTheme(figure: Record<string, unknown>): Record<string, unknown> {
-  const layout = (figure.layout as Record<string, unknown> | undefined) || {};
-  const scene = (layout.scene as Record<string, unknown> | undefined) || {};
-  const nextLayout: Record<string, unknown> = {
-    ...layout,
-    paper_bgcolor: "rgba(0,0,0,0)",
-    plot_bgcolor: "rgba(246, 236, 221, 0.58)",
-    font: {
-      family: '"Instrument Sans", sans-serif',
-      color: "#4a3427",
-    },
-    margin: {
-      l: 40,
-      r: 20,
-      t: 32,
-      b: 40,
-      ...(layout.margin || {}),
-    },
-  };
+function buildReasonLine(coffee: RecommendationPayload | CatalogueCoffeeSummary): string {
+  const notes = coffee.tasting_notes?.slice(0, 2) || [];
+  const descriptors = [coffee.origin_country, formatProcess(coffee.process ?? null)]
+    .filter(Boolean)
+    .join(" · ");
 
-  if (layout.xaxis) {
-    nextLayout.xaxis = {
-      ...layout.xaxis,
-      gridcolor: "rgba(121, 92, 69, 0.12)",
-      zerolinecolor: "rgba(121, 92, 69, 0.18)",
-    };
+  if (notes.length) {
+    return `${descriptors ? `${descriptors} · ` : ""}${notes.join(" · ")}`;
   }
 
-  if (layout.yaxis) {
-    nextLayout.yaxis = {
-      ...layout.yaxis,
-      gridcolor: "rgba(121, 92, 69, 0.12)",
-      zerolinecolor: "rgba(121, 92, 69, 0.18)",
-    };
+  return descriptors || "A strong fit for your current taste profile";
+}
+
+function buildWhyRecommended(recommendation: RecommendationPayload | null, detail: CoffeeDetailPayload | null): string {
+  if (recommendation?.tasting_notes.length) {
+    return `Because you’ve been leaning toward coffees with ${recommendation.tasting_notes
+      .slice(0, 3)
+      .join(", ")}.`;
   }
 
-  if (layout.scene) {
-    nextLayout.scene = {
-      ...scene,
-      bgcolor: "rgba(0,0,0,0)",
-      xaxis: {
-        ...((scene.xaxis as Record<string, unknown> | undefined) || {}),
-        backgroundcolor: "rgba(246, 236, 221, 0.2)",
-        gridcolor: "rgba(121, 92, 69, 0.14)",
-        zerolinecolor: "rgba(121, 92, 69, 0.2)",
-      },
-      yaxis: {
-        ...((scene.yaxis as Record<string, unknown> | undefined) || {}),
-        backgroundcolor: "rgba(246, 236, 221, 0.2)",
-        gridcolor: "rgba(121, 92, 69, 0.14)",
-        zerolinecolor: "rgba(121, 92, 69, 0.2)",
-      },
-      zaxis: {
-        ...((scene.zaxis as Record<string, unknown> | undefined) || {}),
-        backgroundcolor: "rgba(246, 236, 221, 0.2)",
-        gridcolor: "rgba(121, 92, 69, 0.14)",
-        zerolinecolor: "rgba(121, 92, 69, 0.2)",
-      },
-    };
+  if (detail?.tasting_notes.length) {
+    return `Because this cup should land around ${detail.tasting_notes.slice(0, 3).join(", ")}.`;
   }
 
-  return {
-    ...figure,
-    layout: nextLayout,
-  };
+  if (detail?.origin_country || detail?.process) {
+    return `Because it sits in the same zone as coffees you’ve been responding well to recently.`;
+  }
+
+  return "Because it should be a natural next step from the coffees you’ve liked so far.";
+}
+
+function getFlavorBars(detail: CoffeeDetailPayload | null): Array<{ label: string; value: number }> {
+  if (!detail) {
+    return [];
+  }
+
+  const sensory = detail.features.sensory;
+  return [
+    { label: "Acidity", value: sensory.acidity ?? 0.5 },
+    { label: "Sweetness", value: sensory.sweetness ?? 0.5 },
+    { label: "Body", value: sensory.body ?? 0.5 },
+    { label: "Floral", value: sensory.floral ?? sensory.fruitiness ?? 0.5 },
+  ];
+}
+
+function buildReviewText(mood: ReviewMood, selectedChipIds: string[], note: string): string {
+  const parts = [moodCopy[mood].sentence];
+  const chipPhrases = feedbackChips
+    .filter((chip) => selectedChipIds.includes(chip.id))
+    .map((chip) => chip.phrase);
+
+  if (chipPhrases.length) {
+    parts.push(chipPhrases.join(" "));
+  }
+
+  if (note.trim()) {
+    parts.push(note.trim());
+  }
+
+  return parts.join(" ");
 }
 
 function App() {
+  const [screen, setScreen] = useState<Screen>("home");
   const [catalogueCoffees, setCatalogueCoffees] = useState<CatalogueCoffeeSummary[]>([]);
   const [reviewSession, setReviewSession] = useState<ReviewSessionPayload | null>(null);
-  const [landscape, setLandscape] = useState<LandscapeResponse | null>(null);
-  const [inputMode, setInputMode] = useState<InputMode>("catalogue");
-  const [selectedCoffeeId, setSelectedCoffeeId] = useState("");
+  const [selectedCoffeeId, setSelectedCoffeeId] = useState<string | null>(null);
+  const [selectedDetail, setSelectedDetail] = useState<CoffeeDetailPayload | null>(null);
   const [selectedReviewedCoffee, setSelectedReviewedCoffee] = useState<ReviewedCoffeeDetails | null>(null);
-  const [urlValue, setUrlValue] = useState("");
-  const [reviewText, setReviewText] = useState(defaultReview);
-  const [topK, setTopK] = useState(5);
-  const [showSurface, setShowSurface] = useState(true);
+  const [reviewMood, setReviewMood] = useState<ReviewMood>("liked");
+  const [selectedChipIds, setSelectedChipIds] = useState<string[]>([]);
+  const [reviewNote, setReviewNote] = useState("");
   const [loading, setLoading] = useState(true);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [processingUrl, setProcessingUrl] = useState(false);
-  const [clearing, setClearing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
 
-    async function loadInitialState() {
+    async function load() {
       setLoading(true);
       setErrorMessage(null);
 
@@ -159,16 +160,6 @@ function App() {
 
         setCatalogueCoffees(coffees);
         setReviewSession(session);
-
-        if (coffees.length > 0) {
-          const firstCoffeeId = coffees[0].coffee_id;
-          setSelectedCoffeeId(firstCoffeeId);
-          const reviewed = await api.getCatalogueReviewedCoffee(firstCoffeeId);
-          if (!active) {
-            return;
-          }
-          setSelectedReviewedCoffee(reviewed);
-        }
       } catch (error) {
         if (!active) {
           return;
@@ -181,393 +172,394 @@ function App() {
       }
     }
 
-    void loadInitialState();
+    void load();
 
     return () => {
       active = false;
     };
   }, []);
 
-  useEffect(() => {
-    if (!reviewSession?.review_events.length) {
-      setLandscape(null);
-      return;
-    }
+  const recommendations = reviewSession?.last_recommendations || [];
+  const primaryCards =
+    recommendations.length > 0 ? recommendations : catalogueCoffees.slice(0, 6);
+  const selectedRecommendation =
+    recommendations.find((coffee) => coffee.coffee_id === selectedCoffeeId) || null;
+  const latestReviewCount = reviewSession?.review_events.length || 0;
 
-    let active = true;
-
-    async function loadLandscape() {
-      try {
-        const nextLandscape = await api.buildLandscape(showSurface);
-        if (active) {
-          setLandscape(nextLandscape);
-        }
-      } catch (error) {
-        if (active) {
-          setErrorMessage(error instanceof Error ? error.message : "Could not load the landscape.");
-        }
-      }
-    }
-
-    void loadLandscape();
-
-    return () => {
-      active = false;
-    };
-  }, [reviewSession, showSurface]);
-
-  async function handleCatalogueSelection(coffeeId: string) {
-    setSelectedCoffeeId(coffeeId);
+  async function openCoffee(coffeeId: string) {
+    setDetailLoading(true);
     setErrorMessage(null);
 
     try {
-      const reviewed = await api.getCatalogueReviewedCoffee(coffeeId);
-      setSelectedReviewedCoffee(reviewed);
+      const [detail, reviewedCoffee] = await Promise.all([
+        api.getCoffeeDetail(coffeeId),
+        api.getCatalogueReviewedCoffee(coffeeId),
+      ]);
+
+      startTransition(() => {
+        setSelectedCoffeeId(coffeeId);
+        setSelectedDetail(detail);
+        setSelectedReviewedCoffee(reviewedCoffee);
+        setScreen("detail");
+      });
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Could not load that coffee.");
-    }
-  }
-
-  async function handleProcessUrl() {
-    if (!urlValue.trim()) {
-      setErrorMessage("Paste a coffee product URL before processing it.");
-      return;
-    }
-
-    setProcessingUrl(true);
-    setErrorMessage(null);
-
-    try {
-      const reviewed = await api.getReviewedCoffeeFromUrl(urlValue.trim());
-      setSelectedReviewedCoffee(reviewed);
-      setUrlValue(reviewed.normalized_url || urlValue.trim());
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Could not process that URL.");
     } finally {
-      setProcessingUrl(false);
+      setDetailLoading(false);
     }
   }
 
-  async function handleSubmitReview() {
-    if (!selectedReviewedCoffee) {
-      setErrorMessage("Choose a coffee before asking for recommendations.");
+  function moveToReview() {
+    setReviewMood("liked");
+    setSelectedChipIds([]);
+    setReviewNote("");
+    setScreen("review");
+  }
+
+  function toggleChip(chipId: string) {
+    setSelectedChipIds((current) =>
+      current.includes(chipId) ? current.filter((value) => value !== chipId) : [...current, chipId],
+    );
+  }
+
+  async function submitReview() {
+    if (!selectedReviewedCoffee || !selectedCoffeeId) {
+      setErrorMessage("Choose a coffee before submitting feedback.");
       return;
     }
 
     setSubmitting(true);
     setErrorMessage(null);
+    setStatusMessage(null);
 
     try {
       const response = await api.submitReview({
-        review_text: reviewText,
+        review_text: buildReviewText(reviewMood, selectedChipIds, reviewNote),
         reviewed_coffee: selectedReviewedCoffee,
-        top_k: topK,
+        top_k: 5,
       });
+
       setReviewSession(response.review_session);
+      setStatusMessage("Recommendations refreshed for your next cup.");
+      setScreen("home");
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Could not generate recommendations.");
+      setErrorMessage(error instanceof Error ? error.message : "Could not update recommendations.");
     } finally {
       setSubmitting(false);
     }
   }
 
-  async function handleClearSession() {
-    setClearing(true);
-    setErrorMessage(null);
-
-    try {
-      const session = await api.clearReviewSession();
-      setReviewSession(session);
-      setLandscape(null);
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Could not clear the tasting session.");
-    } finally {
-      setClearing(false);
-    }
-  }
-
-  const topSensoryNotes = useMemo(() => {
-    if (!selectedReviewedCoffee) {
-      return [];
-    }
-    return getTopSensoryNotes(selectedReviewedCoffee.features.sensory);
-  }, [selectedReviewedCoffee]);
-
-  const recommendations: RecommendationPayload[] = reviewSession?.last_recommendations || [];
-  const plotFigure = landscape?.figure ? buildPlotlyTheme(landscape.figure) : null;
-
-  const plotData = (plotFigure?.data || []) as unknown[];
-  const plotLayout = (plotFigure?.layout || {}) as Record<string, unknown>;
-  const plotConfig = {
-    displayModeBar: false,
-    responsive: true,
-  };
-
   if (loading) {
     return (
-      <main className="shell">
-        <section className="loading-card">
+      <main className="app-shell">
+        <section className="phone-frame loading-state">
           <p className="eyebrow">Coffee Recommender</p>
-          <h1>Warming up the tasting room...</h1>
+          <h1>Brewing your pocket tasting room...</h1>
         </section>
       </main>
     );
   }
 
   return (
-    <main className="shell">
-      <div className="backdrop backdrop-one" />
-      <div className="backdrop backdrop-two" />
+    <main className="app-shell">
+      <div className="ambient ambient-top" />
+      <div className="ambient ambient-bottom" />
 
-      <section className="hero">
-        <div className="hero-copy">
-          <p className="eyebrow">Coffee Recommender</p>
-          <h1>Find your next cup with a softer, more editorial tasting experience.</h1>
-          <p className="lede">
-            Start from a coffee you know, describe what you loved or wanted to change, and let the
-            recommender guide you toward something deliciously closer.
-          </p>
-        </div>
-
-        <div className="hero-aside">
-          <div className="stat-card">
-            <span className="stat-label">Session picks</span>
-            <strong>{recommendations.length || 0}</strong>
-          </div>
-          <div className="stat-card">
-            <span className="stat-label">Tasting notes</span>
-            <strong>{reviewSession?.review_events.length || 0}</strong>
-          </div>
-        </div>
-      </section>
-
-      {errorMessage ? (
-        <section className="message-banner" role="alert">
-          {errorMessage}
-        </section>
-      ) : null}
-
-      <section className="grid">
-        <article className="panel panel-form">
-          <div className="panel-heading">
-            <p className="eyebrow">1. Choose a starting cup</p>
-            <h2>Set the tasting reference</h2>
-          </div>
-
-          <div className="segmented-control" role="tablist" aria-label="Reviewed coffee source">
-            <button
-              className={inputMode === "catalogue" ? "active" : ""}
-              onClick={() => setInputMode("catalogue")}
-              type="button"
-            >
-              Catalogue coffee
-            </button>
-            <button
-              className={inputMode === "url" ? "active" : ""}
-              onClick={() => setInputMode("url")}
-              type="button"
-            >
-              Coffee URL
-            </button>
-          </div>
-
-          {inputMode === "catalogue" ? (
-            <label className="field">
-              <span>Reviewed coffee</span>
-              <select
-                value={selectedCoffeeId}
-                onChange={(event) => {
-                  void handleCatalogueSelection(event.target.value);
-                }}
-              >
-                {catalogueCoffees.map((coffee) => (
-                  <option key={coffee.coffee_id} value={coffee.coffee_id}>
-                    {coffee.name || coffee.coffee_id}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : (
-            <div className="field-group">
-              <label className="field">
-                <span>Coffee product URL</span>
-                <input
-                  type="url"
-                  value={urlValue}
-                  placeholder="https://..."
-                  onChange={(event) => setUrlValue(event.target.value)}
-                />
-              </label>
-              <button className="secondary-button" onClick={() => void handleProcessUrl()} type="button">
-                {processingUrl ? "Processing..." : "Process coffee"}
-              </button>
-            </div>
-          )}
-
-          <div className="panel-heading panel-heading-tight">
-            <p className="eyebrow">2. Describe the cup</p>
-            <h2>Write your tasting note</h2>
-          </div>
-
-          <label className="field">
-            <span>Your review</span>
-            <textarea
-              value={reviewText}
-              onChange={(event) => setReviewText(event.target.value)}
-              rows={7}
-            />
-          </label>
-
-          <div className="settings-row">
-            <label className="field">
-              <span>How many recommendations</span>
-              <input
-                type="range"
-                min="1"
-                max="10"
-                value={topK}
-                onChange={(event) => setTopK(Number(event.target.value))}
-              />
-              <small>{topK} coffees</small>
-            </label>
-
-            <div className="actions">
-              <button className="primary-button" onClick={() => void handleSubmitReview()} type="button">
-                {submitting ? "Brewing suggestions..." : "Add review and recommend"}
-              </button>
-              <button className="ghost-button" onClick={() => void handleClearSession()} type="button">
-                {clearing ? "Clearing..." : "Clear tasting session"}
-              </button>
-            </div>
-          </div>
-        </article>
-
-        <article className="panel panel-spotlight">
-          <div className="panel-heading">
-            <p className="eyebrow">Current cup</p>
-            <h2>{selectedReviewedCoffee?.features.name || "Choose a coffee to begin"}</h2>
-          </div>
-
-          {selectedReviewedCoffee ? (
+      <section className="phone-frame">
+        <header className="topbar">
+          {screen === "home" ? (
             <>
-              <div className="pill-row">
-                <span className="pill">{getPrimaryProcess(selectedReviewedCoffee.features.process)}</span>
-                <span className="pill">{selectedReviewedCoffee.source_type === "catalogue" ? "Catalogue" : "URL imported"}</span>
+              <div className="brand-block">
+                <div className="brand-row">
+                  <span className="brand-mark" aria-hidden="true" />
+                  <p className="eyebrow">Coffee Recommender</p>
+                </div>
+                <h1>For you</h1>
+                <p className="topbar-subtitle">
+                  {recommendations.length > 0
+                    ? "Fresh picks shaped by your recent feedback"
+                    : "Start with a coffee you know and we’ll sharpen the next recs."}
+                </p>
               </div>
-
-              <p className="spotlight-copy">
-                The recommender will use this cup as the anchor, then tilt future suggestions toward
-                the changes you describe in your note.
-              </p>
-
-              <div className="note-grid">
-                {topSensoryNotes.map((note) => (
-                  <div className="note-card" key={note}>
-                    {note}
-                  </div>
-                ))}
-              </div>
+              <span className="topbar-pill">
+                {latestReviewCount > 0 ? `${latestReviewCount} reviews` : "Start tasting"}
+              </span>
             </>
           ) : (
-            <p className="spotlight-copy">
-              Pick a coffee from the catalogue or bring in a product URL to start shaping the
-              recommendations.
-            </p>
+            <>
+              <button className="icon-button" onClick={() => setScreen("home")} type="button">
+                Back
+              </button>
+              <div className="topbar-copy">
+                <p className="eyebrow">{screen === "detail" ? "Coffee detail" : "Review"}</p>
+                <h1>{screen === "detail" ? "The next cup" : "How was it?"}</h1>
+              </div>
+            </>
           )}
-        </article>
-      </section>
+        </header>
 
-      <section className="results-section">
-        <div className="section-heading">
-          <p className="eyebrow">Recommendations</p>
-          <h2>What to brew next</h2>
-        </div>
+        {errorMessage ? <div className="banner banner-error">{errorMessage}</div> : null}
+        {statusMessage && !errorMessage ? <div className="banner">{statusMessage}</div> : null}
 
-        {recommendations.length === 0 ? (
-          <article className="panel empty-state">
-            Add a tasting note to reveal your first ranked set of coffees.
-          </article>
-        ) : (
-          <div className="recommendation-grid">
-            {recommendations.map((recommendation, index) => (
-              <article className="panel recommendation-card" key={recommendation.coffee_id}>
-                <span className="recommendation-rank">#{index + 1}</span>
-                <h3>{recommendation.name || recommendation.coffee_id}</h3>
-                <p className="recommendation-meta">
-                  {recommendation.roaster || recommendation.producer || recommendation.coffee_id}
+        {screen === "home" ? (
+          <section className="screen-content home-screen">
+            <div className="home-intro card">
+              <div className="home-intro-copy">
+                <p className="section-kicker">
+                  {recommendations.length > 0 ? "Recommended next" : "First step"}
                 </p>
-                <div className="recommendation-detail-row">
-                  {recommendation.origin_country ? (
-                    <span className="mini-pill">{recommendation.origin_country}</span>
-                  ) : null}
-                  {recommendation.process ? (
-                    <span className="mini-pill">{formatProcessLabel(recommendation.process)}</span>
-                  ) : null}
+                <h2>
+                  {recommendations.length > 0
+                    ? "A shortlist that should feel closer to your taste."
+                    : "Pick one coffee to teach the app what you like."}
+                </h2>
+              </div>
+              <p className="home-intro-text">
+                {recommendations.length > 0
+                  ? "Open a coffee, decide if it’s worth trying, then send one fast reaction to refresh the next set."
+                  : "You only need one review to start getting better recs."}
+              </p>
+              <div className="home-intro-stats">
+                <div>
+                  <span className="stat-label">Available now</span>
+                  <strong>{primaryCards.length}</strong>
                 </div>
-                {recommendation.tasting_notes.length ? (
-                  <p className="recommendation-notes">
-                    {recommendation.tasting_notes.slice(0, 3).join(" • ")}
-                  </p>
-                ) : null}
-                <div className="score-row">
-                  <div>
-                    <span>Match score</span>
-                    <strong>{recommendation.score.toFixed(3)}</strong>
-                  </div>
+                <div>
+                  <span className="stat-label">Feedback logged</span>
+                  <strong>{latestReviewCount}</strong>
                 </div>
-                {recommendation.source_url ? (
-                  <a
-                    className="recommendation-link"
-                    href={recommendation.source_url}
-                    target="_blank"
-                    rel="noreferrer"
+              </div>
+            </div>
+
+            <div className="card-stack">
+              {primaryCards.map((coffee, index) => {
+                const isRecommendation = "score" in coffee;
+                const recommendation = isRecommendation ? (coffee as RecommendationPayload) : null;
+                return (
+                  <article
+                    className={`coffee-card ${index === 0 ? "coffee-card-featured" : ""} ${recommendation ? "coffee-card-recommended" : ""}`}
+                    key={coffee.coffee_id}
                   >
-                    View coffee
-                  </a>
+                    <div className="coffee-card-header">
+                      <div>
+                        <p className="card-label">{index === 0 ? (isRecommendation ? "Top pick" : "Starter coffee") : "Also worth a look"}</p>
+                        <h3>{coffee.name || coffee.coffee_id}</h3>
+                        <p className="meta-line">{coffee.roaster || "Roaster unknown"}</p>
+                      </div>
+                      {recommendation ? (
+                        <span className="match-pill">{formatPercent(recommendation.score)}</span>
+                      ) : null}
+                    </div>
+
+                    <p className="descriptor-line">{buildReasonLine(coffee)}</p>
+
+                    <div className="chip-row">
+                      {coffee.tasting_notes.slice(0, 3).map((note) => (
+                        <span className="chip" key={note}>
+                          {note}
+                        </span>
+                      ))}
+                    </div>
+
+                    <div className="card-actions">
+                      <span className="why-line">
+                        {recommendation ? "Why you might like it" : "Good starting reference"}
+                      </span>
+                      <button className="primary-button" onClick={() => void openCoffee(coffee.coffee_id)} type="button">
+                        {detailLoading && selectedCoffeeId === coffee.coffee_id ? "Opening..." : "See details"}
+                      </button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        ) : null}
+
+        {screen === "detail" ? (
+          <section className="screen-content detail-screen">
+            {selectedDetail ? (
+              <>
+                <article className="detail-hero card">
+                  <p className="section-kicker">Coffee detail</p>
+                  <h2>{selectedDetail.name || selectedDetail.coffee_id}</h2>
+                  <p className="meta-line">{selectedDetail.roaster || "Roaster unknown"}</p>
+
+                  <div className="chip-row">
+                    {[selectedDetail.origin_country, formatProcess(selectedDetail.process), selectedDetail.roast_level]
+                      .filter(Boolean)
+                      .map((item) => (
+                        <span className="chip chip-soft" key={item}>
+                          {item}
+                        </span>
+                      ))}
+                  </div>
+                </article>
+
+                <article className="card detail-section">
+                  <p className="section-kicker">At a glance</p>
+                  <div className="facts-grid">
+                    {selectedDetail.region ? (
+                      <div className="fact-item">
+                        <span>Region</span>
+                        <strong>{selectedDetail.region}</strong>
+                      </div>
+                    ) : null}
+                    {selectedDetail.producer ? (
+                      <div className="fact-item">
+                        <span>Producer</span>
+                        <strong>{selectedDetail.producer}</strong>
+                      </div>
+                    ) : null}
+                    {selectedDetail.price ? (
+                      <div className="fact-item">
+                        <span>Price</span>
+                        <strong>
+                          {selectedDetail.currency === "GBP" ? "£" : ""}
+                          {selectedDetail.price.toFixed(2)}
+                        </strong>
+                      </div>
+                    ) : null}
+                    {selectedDetail.weight_g ? (
+                      <div className="fact-item">
+                        <span>Bag size</span>
+                        <strong>{selectedDetail.weight_g}g</strong>
+                      </div>
+                    ) : null}
+                  </div>
+                </article>
+
+                <article className="card detail-section">
+                  <p className="section-kicker">Tasting notes</p>
+                  <div className="chip-row">
+                    {selectedDetail.tasting_notes.length > 0 ? (
+                      selectedDetail.tasting_notes.map((note) => (
+                        <span className="chip" key={note}>
+                          {note}
+                        </span>
+                      ))
+                    ) : (
+                      <span className="empty-copy">No tasting notes captured yet.</span>
+                    )}
+                  </div>
+                </article>
+
+                <article className="card detail-section">
+                  <p className="section-kicker">Why this one</p>
+                  <p className="body-copy">{buildWhyRecommended(selectedRecommendation, selectedDetail)}</p>
+                </article>
+
+                <article className="card detail-section">
+                  <p className="section-kicker">Flavor profile</p>
+                  <div className="flavor-bars">
+                    {getFlavorBars(selectedDetail).map((bar) => (
+                      <div className="flavor-row" key={bar.label}>
+                        <div className="flavor-label-row">
+                          <span>{bar.label}</span>
+                          <strong>{Math.round(bar.value * 100)}%</strong>
+                        </div>
+                        <div className="flavor-track">
+                          <div className="flavor-fill" style={{ width: `${Math.max(10, Math.round(bar.value * 100))}%` }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </article>
+
+                {selectedDetail.description ? (
+                  <article className="card detail-section">
+                    <p className="section-kicker">About this coffee</p>
+                    <p className="body-copy">{selectedDetail.description}</p>
+                  </article>
                 ) : null}
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
 
-      <section className="results-section">
-        <div className="section-heading landscape-header">
-          <div>
-            <p className="eyebrow">Landscape</p>
-            <h2>Where your taste sits in the coffee map</h2>
-          </div>
+                <footer className="sticky-actions">
+                  <button className="secondary-button" onClick={() => setScreen("home")} type="button">
+                    Keep browsing
+                  </button>
+                  <button className="primary-button" onClick={moveToReview} type="button">
+                    Tried it
+                  </button>
+                </footer>
+              </>
+            ) : (
+              <article className="card empty-state">Choose a coffee to see its detail.</article>
+            )}
+          </section>
+        ) : null}
 
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={showSurface}
-              onChange={(event) => setShowSurface(event.target.checked)}
-            />
-            <span>Show score surface</span>
-          </label>
-        </div>
+        {screen === "review" ? (
+          <section className="screen-content review-screen">
+            {selectedDetail ? (
+              <>
+                <article className="card compact-coffee-card">
+                  <p className="section-kicker">Reviewing now</p>
+                  <h2>{selectedDetail.name || selectedDetail.coffee_id}</h2>
+                  <p className="meta-line">
+                    {[selectedDetail.roaster, selectedDetail.origin_country, formatProcess(selectedDetail.process)]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </p>
+                </article>
 
-        {!reviewSession?.review_events.length ? (
-          <article className="panel empty-state">
-            Add at least one review to place your preferences on the projected coffee landscape.
-          </article>
-        ) : landscape?.message ? (
-          <article className="panel empty-state">{landscape.message}</article>
-        ) : plotFigure ? (
-          <article className="panel chart-panel">
-            <Suspense fallback={<div className="plot-loading">Loading the map...</div>}>
-              <LandscapePlot
-                className="plot"
-                data={plotData}
-                layout={plotLayout}
-                config={plotConfig}
-              />
-            </Suspense>
-          </article>
-        ) : (
-          <article className="panel empty-state">Loading the landscape...</article>
-        )}
+                <article className="card review-section">
+                  <p className="section-kicker">Overall</p>
+                  <p className="body-copy">Keep this quick. One reaction is enough to improve the next round.</p>
+                  <div className="mood-grid">
+                    {Object.entries(moodCopy).map(([key, value]) => (
+                      <button
+                        className={`mood-button ${reviewMood === key ? "mood-button-active" : ""}`}
+                        key={key}
+                        onClick={() => setReviewMood(key as ReviewMood)}
+                        type="button"
+                      >
+                        {value.title}
+                      </button>
+                    ))}
+                  </div>
+                </article>
+
+                <article className="card review-section">
+                  <p className="section-kicker">What would you change?</p>
+                  <div className="chip-row">
+                    {feedbackChips.map((chip) => (
+                      <button
+                        className={`filter-chip ${selectedChipIds.includes(chip.id) ? "filter-chip-active" : ""}`}
+                        key={chip.id}
+                        onClick={() => toggleChip(chip.id)}
+                        type="button"
+                      >
+                        {chip.label}
+                      </button>
+                    ))}
+                  </div>
+                </article>
+
+                <article className="card review-section">
+                  <label className="field-label" htmlFor="review-note">
+                    Optional note
+                  </label>
+                  <textarea
+                    id="review-note"
+                    className="note-input"
+                    onChange={(event) => setReviewNote(event.target.value)}
+                    placeholder="Anything else? One sentence is enough."
+                    value={reviewNote}
+                  />
+                </article>
+
+                <footer className="sticky-actions">
+                  <button className="secondary-button" onClick={() => setScreen("detail")} type="button">
+                    Back to coffee
+                  </button>
+                  <button className="primary-button" onClick={() => void submitReview()} type="button">
+                    {submitting ? "Refreshing..." : "Get new recommendations"}
+                  </button>
+                </footer>
+              </>
+            ) : null}
+          </section>
+        ) : null}
       </section>
     </main>
   );

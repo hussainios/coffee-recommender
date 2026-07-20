@@ -1,0 +1,17 @@
+{
+  "name": "Coffee Recommender",
+  "short_name": "Coffee",
+  "description": "A mobile-first coffee recommender for discovering your next bag.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f4ef",
+  "theme_color": "#1f1d1a",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

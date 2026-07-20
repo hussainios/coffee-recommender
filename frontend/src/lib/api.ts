@@ -3,6 +3,10 @@ const DEFAULT_API_BASE_URL = "http://127.0.0.1:8000";
 export type CatalogueCoffeeSummary = {
   coffee_id: string;
   name: string | null;
+  roaster: string | null;
+  origin_country: string | null;
+  process: string | null;
+  tasting_notes: string[];
 };
 
 export type ChangeRequestPayload = {
@@ -73,9 +77,23 @@ export type SubmitReviewResponse = {
   recommendations: RecommendationPayload[];
 };
 
-export type LandscapeResponse = {
-  figure: Record<string, unknown> | null;
-  message: string | null;
+export type CoffeeDetailPayload = {
+  coffee_id: string;
+  name: string | null;
+  roaster: string | null;
+  origin_country: string | null;
+  region: string | null;
+  producer: string | null;
+  farm: string | null;
+  process: string | null;
+  roast_level: string | null;
+  tasting_notes: string[];
+  description: string | null;
+  weight_g: number | null;
+  price: number | null;
+  currency: string | null;
+  source_url: string | null;
+  features: CoffeeFeaturesPayload;
 };
 
 const getApiBaseUrl = (): string =>
@@ -111,36 +129,25 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   listCatalogueCoffees(): Promise<CatalogueCoffeeSummary[]> {
-    return request("/catalogue/coffees");
+    return request("/coffees");
   },
 
   getReviewSession(): Promise<ReviewSessionPayload> {
     return request("/review-session");
   },
 
-  clearReviewSession(): Promise<ReviewSessionPayload> {
-    return request("/review-session", { method: "DELETE" });
+  getCoffeeDetail(coffeeId: string): Promise<CoffeeDetailPayload> {
+    return request(`/coffees/${encodeURIComponent(coffeeId)}`);
   },
 
   getCatalogueReviewedCoffee(coffeeId: string): Promise<ReviewedCoffeeDetails> {
     return request(`/reviewed-coffees/catalogue/${encodeURIComponent(coffeeId)}`);
   },
 
-  getReviewedCoffeeFromUrl(url: string): Promise<ReviewedCoffeeDetails> {
-    return request("/reviewed-coffees/from-url", {
-      method: "POST",
-      body: JSON.stringify({ url }),
-    });
-  },
-
   submitReview(payload: SubmitReviewRequest): Promise<SubmitReviewResponse> {
-    return request("/reviews/submit", {
+    return request("/reviews", {
       method: "POST",
       body: JSON.stringify(payload),
     });
-  },
-
-  buildLandscape(showSurface = true): Promise<LandscapeResponse> {
-    return request(`/review-session/landscape?show_surface=${showSurface}`);
   },
 };
