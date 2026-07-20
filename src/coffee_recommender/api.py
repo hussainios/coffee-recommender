@@ -78,7 +78,7 @@ def create_app(service: ApplicationService | None = None) -> FastAPI:
     @app.get("/coffees/{coffee_id}")
     def get_coffee_details(coffee_id: str):
         try:
-            return application_service.get_catalogue_reviewed_coffee(coffee_id)
+            return application_service.get_catalogue_coffee_detail(coffee_id)
         except Exception as exc:  # pragma: no cover - exercised via tests
             raise _translate_exception(exc) from exc
 

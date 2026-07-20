@@ -7,7 +7,9 @@ from urllib.parse import urlsplit, urlunsplit
 
 from pydantic import HttpUrl
 
+from ..openai_client import DEFAULT_CHAT_MODEL
 from ..schemas import BrewMethod, CoffeeRecord, Process, RoastLevel
+from .extract_metadata import extract_metadata_llm
 
 
 PROCESS_PATTERNS: list[tuple[str, Process]] = [
@@ -39,6 +41,12 @@ BREW_METHOD_PATTERNS: list[tuple[str, BrewMethod]] = [
     (r"\bmoka\s+pot\b", BrewMethod.MOKA_POT),
     (r"\bbatch\s+brew\b", BrewMethod.BATCH_BREW),
 ]
+
+COUNTRY_CORRECTIONS = {
+    "guatamala": "Guatemala",
+    "guatalama": "Guatemala",
+    "equador": "Ecuador",
+}
 
 
 def slugify(value: str) -> str:
@@ -105,12 +113,26 @@ def parse_labelled_field(label: str, text: str) -> str | None:
 
     Stops at the end of the line.
     """
-    pattern = rf"(?im)^\s*{re.escape(label)}\s*[:\-\|]\s*(.+?)\s*$"
+    pattern = rf"(?im)^\s*(?:[-*•]\s*)?{re.escape(label)}\s*[:\-\|—]\s*(.+?)\s*$"
     match = re.search(pattern, text)
     if not match:
         return None
 
     return empty_to_none(match.group(1))
+
+
+def parse_roaster(text: str) -> str | None:
+    labelled = parse_labelled_field("roaster", text)
+    if labelled:
+        return labelled
+
+    lines = [normalise_whitespace(line) for line in text.splitlines() if line.strip()]
+    for line in lines[:5]:
+        match = re.match(r"(?i)^by\s+(.+)$", line)
+        if match:
+            return empty_to_none(match.group(1))
+
+    return None
 
 
 def parse_name(text: str, file_path: Path) -> str:
@@ -161,6 +183,7 @@ def parse_tasting_notes(text: str) -> list[str]:
                 r"(?i)notes of\s+(.+?)(?:\.|\n|$)",
                 r"(?i)flavo[u]?rs of\s+(.+?)(?:\.|\n|$)",
                 r"(?i)tastes? of\s+(.+?)(?:\.|\n|$)",
+                r"(?im)^\s*tastes?\s+like\s*[—:\-\|]\s*(.+?)\s*$",
             ],
             text,
         )
@@ -181,7 +204,10 @@ def parse_tasting_notes(text: str) -> list[str]:
 
 
 def parse_process(text: str) -> Process:
-    labelled = parse_labelled_field("process", text)
+    labelled = (
+        parse_labelled_field("process", text)
+        or parse_labelled_field("process method", text)
+    )
     search_text = labelled if labelled else text
 
     for pattern, process in PROCESS_PATTERNS:
@@ -216,6 +242,8 @@ def parse_variety(text: str) -> list[str]:
     raw = (
         parse_labelled_field("variety", text)
         or parse_labelled_field("varieties", text)
+        or parse_labelled_field("varietal", text)
+        or parse_labelled_field("varietals", text)
         or parse_labelled_field("cultivar", text)
         or parse_labelled_field("cultivars", text)
     )
@@ -232,11 +260,19 @@ def parse_variety(text: str) -> list[str]:
     ]
 
 
+def normalise_country_name(value: str | None) -> str | None:
+    cleaned = empty_to_none(value)
+    if cleaned is None:
+        return None
+    corrected = COUNTRY_CORRECTIONS.get(cleaned.lower(), cleaned)
+    return corrected
+
+
 def parse_origin_country(text: str) -> str | None:
     labelled = parse_labelled_field("origin", text) or parse_labelled_field("country", text)
 
     if labelled:
-        return empty_to_none(labelled.split(",")[0])
+        return normalise_country_name(labelled.split(",")[0])
 
     match = first_match(
         [
@@ -244,7 +280,37 @@ def parse_origin_country(text: str) -> str | None:
         ],
         text,
     )
-    return empty_to_none(match)
+    return normalise_country_name(match)
+
+
+def parse_region(text: str) -> str | None:
+    labelled = parse_labelled_field("region", text)
+    if labelled:
+        return labelled
+
+    origin = parse_labelled_field("origin", text)
+    if origin and "," in origin:
+        parts = [normalise_whitespace(part) for part in origin.split(",") if normalise_whitespace(part)]
+        if len(parts) >= 2:
+            return ", ".join(parts[1:])
+
+    return None
+
+
+def parse_farm(text: str) -> str | None:
+    labelled = parse_labelled_field("farm", text)
+    if labelled:
+        return labelled
+
+    origin = parse_labelled_field("origin", text)
+    if origin and "," in origin:
+        parts = [normalise_whitespace(part) for part in origin.split(",") if normalise_whitespace(part)]
+        if len(parts) >= 2:
+            candidate = parts[1]
+            if re.search(r"(?i)\b(finca|farm|estate|hacienda)\b", candidate):
+                return candidate
+
+    return None
 
 
 def parse_description(text: str, max_chars: int = 3000) -> str | None:
@@ -276,31 +342,13 @@ def parse_metadata_text(
     text: str,
     source: str,
     source_url: str | None = None,
+    model: str | None = None,
 ) -> CoffeeRecord:
-    source_path = Path(source)
-    name = parse_name(text, source_path)
-    coffee_id = build_coffee_id(name, source, source_url=source_url)
-    validated_source_url = HttpUrl(source_url) if source_url else None
-
-    return CoffeeRecord(
-        coffee_id=coffee_id,
-        name=name,
-        roaster=parse_labelled_field("roaster", text),
-        origin_country=parse_origin_country(text),
-        region=parse_labelled_field("region", text),
-        producer=parse_labelled_field("producer", text),
-        farm=parse_labelled_field("farm", text),
-        process=parse_process(text),
-        variety=parse_variety(text),
-        roast_level=parse_roast_level(text),
-        tasting_notes=parse_tasting_notes(text),
-        description=parse_description(text),
-        price=parse_price(text),
-        currency="GBP",
-        weight_g=parse_weight_g(text),
-        brew_methods=parse_brew_methods(text),
-        source_url=validated_source_url,
-        source_file=source,
+    return extract_metadata_llm(
+        text=text,
+        source=source,
+        source_url=source_url,
+        model=model or DEFAULT_CHAT_MODEL,
     )
 
 

@@ -12,12 +12,40 @@ from coffee_recommender.reviewed_coffee_url import (
     fetch_url_html,
     prepare_reviewed_coffee_from_url,
 )
-from coffee_recommender.schemas import Process, SensoryVector
+from coffee_recommender.schemas import BrewMethod, CoffeeRecord, Process, RoastLevel, SensoryVector
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class ReviewedCoffeeUrlTests(unittest.TestCase):
+    def _fake_coffee(
+        self,
+        *,
+        name: str = "Diego Bermudez - Chocolate Strudel",
+        process: Process = Process.WASHED,
+        source_url: str = "https://example.com/coffee",
+    ) -> CoffeeRecord:
+        return CoffeeRecord(
+            coffee_id="diego-bermudez-chocolate-strudel-123456789abc",
+            name=name,
+            roaster="Native",
+            origin_country="Colombia",
+            region="Huila",
+            producer="Diego Bermudez",
+            farm=None,
+            process=process,
+            variety=["castillo", "caturra"],
+            roast_level=RoastLevel.UNKNOWN,
+            tasting_notes=["cherry", "chocolate", "brown sugar"],
+            description="Filter coffee roasted for clarity and sweetness.",
+            price=18.5,
+            currency="GBP",
+            weight_g=250,
+            brew_methods=[BrewMethod.FILTER],
+            source_url=source_url,
+            source_file=f"url:{source_url}",
+        )
+
     def _fake_sensory(self, **overrides: float | str) -> SensoryVector:
         payload = {
             "coffee_id": "placeholder",
@@ -81,6 +109,7 @@ class ReviewedCoffeeUrlTests(unittest.TestCase):
 
         with (
             patch.object(reviewed_coffee_url, "fetch_url_html", return_value=("https://example.com/coffee", html)),
+            patch.object(reviewed_coffee_url, "parse_metadata_text", return_value=self._fake_coffee()),
             patch.object(reviewed_coffee_url, "extract_sensory_vector_llm", return_value=fake_sensory),
             patch.object(reviewed_coffee_url, "embed_coffee_record", return_value=[0.1, 0.2, 0.3]),
         ):
@@ -113,6 +142,7 @@ class ReviewedCoffeeUrlTests(unittest.TestCase):
 
         with (
             patch.object(reviewed_coffee_url, "fetch_url_html", return_value=("https://example.com/coffee", html)),
+            patch.object(reviewed_coffee_url, "parse_metadata_text", return_value=self._fake_coffee()),
             patch.object(reviewed_coffee_url, "extract_sensory_vector_llm", return_value=self._fake_sensory()),
             patch.object(reviewed_coffee_url, "embed_coffee_record", return_value=[0.1, 0.2, 0.3]),
         ):
@@ -147,6 +177,11 @@ class ReviewedCoffeeUrlTests(unittest.TestCase):
 
         with (
             patch.object(reviewed_coffee_url, "fetch_url_html", return_value=("https://example.com/kenya", html)),
+            patch.object(
+                reviewed_coffee_url,
+                "parse_metadata_text",
+                return_value=self._fake_coffee(name="Example Coffee", process=Process.WASHED, source_url="https://example.com/kenya"),
+            ),
             patch.object(reviewed_coffee_url, "extract_sensory_vector_llm", return_value=fake_sensory),
             patch.object(reviewed_coffee_url, "embed_coffee_record", return_value=[0.3, 0.2, 0.1]),
         ):
@@ -227,6 +262,11 @@ class ReviewedCoffeeUrlTests(unittest.TestCase):
 
         with (
             patch.object(reviewed_coffee_url, "fetch_url_html", return_value=("https://example.com/kenya", html)),
+            patch.object(
+                reviewed_coffee_url,
+                "parse_metadata_text",
+                return_value=self._fake_coffee(name="Example Coffee", process=Process.WASHED, source_url="https://example.com/kenya"),
+            ),
             patch.object(reviewed_coffee_url, "extract_sensory_vector_llm", return_value=self._fake_sensory()) as extract,
             patch.object(reviewed_coffee_url, "embed_coffee_record", return_value=[0.3, 0.2, 0.1]),
         ):

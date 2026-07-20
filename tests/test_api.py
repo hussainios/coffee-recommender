@@ -154,7 +154,10 @@ class ApiTests(unittest.TestCase):
             coffees = client.get("/catalogue/coffees")
             self.assertEqual(coffees.status_code, 200)
             self.assertEqual(coffees.json()[0]["coffee_id"], "candidate")
-            self.assertEqual(set(coffees.json()[0]), {"coffee_id", "name"})
+            self.assertEqual(
+                set(coffees.json()[0]),
+                {"coffee_id", "name", "roaster", "origin_country", "process", "tasting_notes"},
+            )
 
             coffees_alias = client.get("/coffees")
             self.assertEqual(coffees_alias.status_code, 200)
@@ -170,7 +173,8 @@ class ApiTests(unittest.TestCase):
 
             reviewed_alias = client.get("/coffees/reviewed")
             self.assertEqual(reviewed_alias.status_code, 200)
-            self.assertEqual(reviewed_alias.json()["source_type"], "catalogue")
+            self.assertEqual(reviewed_alias.json()["coffee_id"], "reviewed")
+            self.assertIn("features", reviewed_alias.json())
 
             with patch.object(
                 coffee_service,

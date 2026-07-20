@@ -9,6 +9,7 @@ import plotly.io as pio
 
 from .api_models import (
     CatalogueCoffeeSummary,
+    CoffeeDetailPayload,
     LandscapeResponse,
     RecommendationRunPayload,
     ReviewHistoryItemPayload,
@@ -23,6 +24,7 @@ from .api_models import (
 from .catalogue_store import CatalogueStore, CsvCatalogueStore, SqlAlchemyCatalogueStore
 from .coffee_service import (
     CatalogueData,
+    build_coffee_detail_payload,
     build_coffee_options,
     build_scoring_features,
     prepare_url_selection,
@@ -56,14 +58,32 @@ class ApplicationService:
 
     def list_catalogue_coffees(self) -> list[CatalogueCoffeeSummary]:
         catalogue = self.load_catalogue()
-        options = build_coffee_options(catalogue.coffees)
-        return [
-            CatalogueCoffeeSummary(
-                coffee_id=coffee_id,
-                name=label.rsplit(" (", 1)[0],
+        rows = catalogue.coffees.sort_values("name").to_dict(orient="records")
+        summaries: list[CatalogueCoffeeSummary] = []
+        for row in rows:
+            tasting_notes_raw = row.get("tasting_notes")
+            tasting_notes = []
+            if isinstance(tasting_notes_raw, list):
+                tasting_notes = [str(note) for note in tasting_notes_raw if str(note).strip()]
+            elif isinstance(tasting_notes_raw, str) and tasting_notes_raw.strip():
+                try:
+                    parsed = literal_eval(tasting_notes_raw)
+                    if isinstance(parsed, list):
+                        tasting_notes = [str(note) for note in parsed if str(note).strip()]
+                except (ValueError, SyntaxError):
+                    tasting_notes = []
+
+            summaries.append(
+                CatalogueCoffeeSummary(
+                    coffee_id=str(row["coffee_id"]),
+                    name=_optional_string(row.get("name")),
+                    roaster=_optional_string(row.get("roaster")),
+                    origin_country=_optional_string(row.get("origin_country")),
+                    process=_optional_string(row.get("process")),
+                    tasting_notes=tasting_notes,
+                )
             )
-            for label, coffee_id in options.items()
-        ]
+        return summaries
 
     def list_reviews(self) -> list[ReviewHistoryItemPayload]:
         if self._review_history_store is None:
@@ -99,6 +119,10 @@ class ApplicationService:
             sensory=selection.sensory,
             source_type="catalogue",
         )
+
+    def get_catalogue_coffee_detail(self, coffee_id: str) -> CoffeeDetailPayload:
+        selection = select_catalogue_reviewed_coffee(self.load_catalogue(), coffee_id)
+        return build_coffee_detail_payload(selection)
 
     def get_reviewed_coffee_from_url(self, url: str) -> ReviewedCoffeeDetails:
         reviewed = prepare_url_selection(url)

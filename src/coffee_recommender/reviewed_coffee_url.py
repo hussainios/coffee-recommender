@@ -127,6 +127,7 @@ def prepare_reviewed_coffee_from_url(
     url: str,
     *,
     embedding_model: str = DEFAULT_EMBEDDING_MODEL,
+    metadata_model: str = DEFAULT_CHAT_MODEL,
     sensory_model: str = DEFAULT_CHAT_MODEL,
 ) -> ReviewedCoffeeFromUrl:
     normalized_url, html = fetch_url_html(url)
@@ -135,6 +136,7 @@ def prepare_reviewed_coffee_from_url(
         extracted_text,
         source=f"url:{normalized_url}",
         source_url=normalized_url,
+        model=metadata_model,
     )
     _validate_parsed_coffee(coffee)
     sensory = extract_sensory_vector_llm(coffee, model=sensory_model, temperature=0.0)

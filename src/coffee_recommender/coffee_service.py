@@ -7,6 +7,7 @@ from typing import Any
 import pandas as pd
 
 from .api_models import (
+    CoffeeDetailPayload,
     CoffeeFeaturesPayload,
     RecommendationPayload,
     ReviewEventPayload,
@@ -65,6 +66,34 @@ def build_coffee_options(coffees: pd.DataFrame) -> dict[str, str]:
         f"{row['name']} ({row['coffee_id']})": str(row["coffee_id"])
         for _, row in coffees.sort_values("name").iterrows()
     }
+
+
+def build_coffee_detail_payload(
+    selection: ReviewedCoffeeSelection,
+) -> CoffeeDetailPayload:
+    metadata = selection.metadata or {}
+    tasting_notes = metadata.get("tasting_notes")
+    if not isinstance(tasting_notes, list):
+        tasting_notes = []
+
+    return CoffeeDetailPayload(
+        coffee_id=selection.features.coffee_id,
+        name=selection.features.name,
+        roaster=_optional_string(metadata.get("roaster")),
+        origin_country=_optional_string(metadata.get("origin_country")),
+        region=_optional_string(metadata.get("region")),
+        producer=_optional_string(metadata.get("producer")),
+        farm=_optional_string(metadata.get("farm")),
+        process=_optional_string(metadata.get("process")),
+        roast_level=_optional_string(metadata.get("roast_level")),
+        tasting_notes=[str(note) for note in tasting_notes if str(note).strip()],
+        description=_optional_string(metadata.get("description")),
+        weight_g=_optional_int(metadata.get("weight_g")),
+        price=_optional_float(metadata.get("price")),
+        currency=_optional_string(metadata.get("currency")),
+        source_url=_optional_string(metadata.get("source_url")),
+        features=coffee_features_to_payload(selection.features),
+    )
 
 
 def select_catalogue_reviewed_coffee(
@@ -177,3 +206,30 @@ def build_scoring_features(
     scoring_features = dict(features)
     scoring_features.update(reviewed_feature_overrides)
     return scoring_features
+
+
+def _optional_string(value: object) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, float) and pd.isna(value):
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _optional_int(value: object) -> int | None:
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return None
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return None
+
+
+def _optional_float(value: object) -> float | None:
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None

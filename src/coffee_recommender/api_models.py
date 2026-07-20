@@ -61,6 +61,29 @@ class ReviewSessionPayload(BaseModel):
 class CatalogueCoffeeSummary(BaseModel):
     coffee_id: str
     name: str | None = None
+    roaster: str | None = None
+    origin_country: str | None = None
+    process: str | None = None
+    tasting_notes: list[str] = Field(default_factory=list)
+
+
+class CoffeeDetailPayload(BaseModel):
+    coffee_id: str
+    name: str | None = None
+    roaster: str | None = None
+    origin_country: str | None = None
+    region: str | None = None
+    producer: str | None = None
+    farm: str | None = None
+    process: str | None = None
+    roast_level: str | None = None
+    tasting_notes: list[str] = Field(default_factory=list)
+    description: str | None = None
+    weight_g: int | None = None
+    price: float | None = None
+    currency: str | None = None
+    source_url: str | None = None
+    features: CoffeeFeaturesPayload
 
 
 class ReviewedCoffeeDetails(BaseModel):

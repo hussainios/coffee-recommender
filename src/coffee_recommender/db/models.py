@@ -75,6 +75,72 @@ class CatalogueCoffeeModel(Base):
     embeddings: Mapped[list[EmbeddingModel]] = relationship(back_populates="coffee")
     review_events: Mapped[list[ReviewEventModel]] = relationship(back_populates="coffee")
     recommendation_items: Mapped[list[RecommendationItemModel]] = relationship(back_populates="coffee")
+    parse_runs: Mapped[list[SourcePageParseRunModel]] = relationship(back_populates="coffee")
+
+
+class SourceStoreModel(Base):
+    __tablename__ = "source_stores"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    base_url: Mapped[str] = mapped_column(Text, nullable=False)
+    allowed_domains_json: Mapped[StringList] = mapped_column(JSONB, default=list, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    source_pages: Mapped[list[SourcePageModel]] = relationship(back_populates="store")
+
+
+class SourcePageModel(Base):
+    __tablename__ = "source_pages"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    store_id: Mapped[int | None] = mapped_column(ForeignKey("source_stores.id"), index=True)
+    source_url: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    normalized_url: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    page_type: Mapped[str] = mapped_column(String(64), default="product", nullable=False)
+    fetch_status: Mapped[str] = mapped_column(String(64), default="fetched", nullable=False)
+    html_content: Mapped[str | None] = mapped_column(Text)
+    visible_text: Mapped[str | None] = mapped_column(Text)
+    content_hash: Mapped[str | None] = mapped_column(String(64), index=True)
+    discovered_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    fetched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_error: Mapped[str | None] = mapped_column(Text)
+
+    store: Mapped[SourceStoreModel | None] = relationship(back_populates="source_pages")
+    parse_runs: Mapped[list[SourcePageParseRunModel]] = relationship(back_populates="source_page")
+
+
+class SourcePageParseRunModel(Base):
+    __tablename__ = "source_page_parse_runs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    source_page_id: Mapped[int] = mapped_column(ForeignKey("source_pages.id"), nullable=False, index=True)
+    coffee_id: Mapped[str | None] = mapped_column(
+        String(128),
+        ForeignKey("catalogue_coffees.id"),
+        index=True,
+    )
+    schema_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    parser_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    extraction_model: Mapped[str] = mapped_column(String(128), nullable=False)
+    parse_status: Mapped[str] = mapped_column(String(64), nullable=False)
+    warnings_json: Mapped[StringList] = mapped_column(JSONB, default=list, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    source_page: Mapped[SourcePageModel] = relationship(back_populates="parse_runs")
+    coffee: Mapped[CatalogueCoffeeModel | None] = relationship(back_populates="parse_runs")
 
 
 class CoffeeSourceModel(Base):
