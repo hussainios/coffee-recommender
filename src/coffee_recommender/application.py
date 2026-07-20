@@ -5,8 +5,6 @@ import math
 from ast import literal_eval
 from dataclasses import dataclass, field
 
-import plotly.io as pio
-
 from .api_models import (
     CatalogueCoffeeSummary,
     LandscapeResponse,
@@ -34,7 +32,6 @@ from .config import DataPaths, get_data_paths, get_optional_database_url
 from .db import SqlAlchemyReviewHistoryStore, create_session_factory
 from .db.review_history import ReviewHistoryStore
 from .review_session import create_review_session
-from .visualize_landscape import build_projected_score_landscape_figure
 
 RECOMMENDATION_ALGORITHM_VERSION = "landscape_v1"
 
@@ -180,6 +177,15 @@ class ApplicationService:
         review_session = self.get_review_session()
         if not review_session.review_events:
             return LandscapeResponse(message="Add at least one review to plot the score landscape.")
+
+        try:
+            import plotly.io as pio
+
+            from .visualize_landscape import build_projected_score_landscape_figure
+        except ModuleNotFoundError:
+            return LandscapeResponse(
+                message="Landscape visualisation is unavailable in this deployment."
+            )
 
         scoring_features = build_scoring_features(
             catalogue.features,
