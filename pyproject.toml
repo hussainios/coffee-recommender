@@ -50,3 +50,6 @@ indent-style = "space"
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]
+
+[tool.vercel]
+entrypoint = "src.coffee_recommender.api:app"
